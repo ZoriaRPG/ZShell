@@ -1,0 +1,254 @@
+
+//! ZScript: ZC Shell for Quest Debug and CHeat Commands
+//! Docs for v1.14.2
+
+/////////////
+/// USING ///
+/////////////
+
+Press F7 to open the shell.
+Type an instruction.
+Press the DOWN ARROW KEy to ENQUEUE the instruction, or;
+	Press ENTER to execute the instruction.
+If you have enqueued instructions, press ENTER either at the
+	end of an instruction, or on an empty line to EXECUTE 
+	all of your enqueued instructions.
+	
+//////////////
+/// Traces ///
+//////////////
+
+You may print a line of text, or a literal value directly
+to allegro.log using the following syntax:
+
+%s
+	This traces all characters that follow it, to
+	allegro.log as a string.
+	It eats all leading spaces and characters,
+	so all of these are identical:
+		%sPRINTME
+		%s:PRINTME
+		%s PRINTME
+		%s: PRINTME
+		
+	The output of this will be:
+		LOG: PRINTME
+		
+%d
+	This traces a literal value (integer or float)
+	to allegro.log.
+	It eats all leading spaces and characters,
+	so all of these are identical:
+		%100.500
+		%s:100.500
+		%s 100.500
+		%s: 100.500
+		
+	The output of this will be:
+		LOG: 100.500
+		
+Traces cannot be enqueued at this time. 
+	
+////////////////////////
+/// Sequence Scripts ///
+////////////////////////
+
+You may save a sequence of instructions that you have entered
+into the shell into one of TEN SEQUENCE SLOTS.
+
+To do this, after entering a series of commands, with a BLANK LINE,
+press the CONTROL KEY and one of the main number keys (above the home row,
+not on the number pad), 1 through 0.
+
+The number key that you press corresponds to the SEQUENCE slot that your
+sequence script is using.
+
+If you save the quest, your sequence script will save with it.
+
+To run a sequence script, open the shell, and do not add any INSTRUCTIONS ON THE STACK:
+Type the command: RunSequence,id 
+
+	[example--
+
+		RunSequence,1
+		
+	--end example]
+	
+	This will immediate;y run Sequence Script 1.
+	
+	
+
+
+
+//////////////////////////////
+/// Supported Instructions ///
+//////////////////////////////
+
+Link's Position
+w    : Warp Link to a specific dmap and screen
+po   : Reposition Link on the screen.
+mx   : Move link by +/-n pixels on the X axis.
+my   : Move link by +/-n pixels on the Y axis.
+
+//Counters
+h    : Set Link's HP to a specific value.
+m    : Set Link's Magic to a specific value.
+a    : Set the current number of Arrows
+b    : Set the current number of Bombs
+r    : Set the current number of Rupees
+mb   : Set the current number of Max Bombs
+ma   : Set the current number of Max Arrows
+mr   : Set the current number of Max Rupees
+k    : Set the current number of Keys
+co   : Set an arbitrary counter to a specific value.
+rh   : Refill Link's HP to Max.
+rm   : Refill Link's HP to Max.
+rc   : Refill a specific counter to Max.
+mh   : Set Link's Max HP.
+mm   : Set Link's Max MP
+mc   : Set the maximum value of a specific counter.
+
+//Items
+lk   : Set the current number of Level Keys for a specific level ID.
+lm   : Set if the MAP item for a specific Level is in inventory.
+lc   : Set if the COMPASS item for a specific Level is in inventory.
+lt   : Set if the TRIFORCE item for a specific Level is in inventory.
+lb   : Set if the BOSS KEy item for a specific Level is in inventory.
+itm  : Set the state of a specific item in Link's inventory.
+
+//Link's States
+hb   : Set if Link uses a full tile hitbox. (hitbox)
+d    : Set if Link can move diagonally.
+inv  : Set Link's Invisible state.
+
+//Create Objects
+crn  : Create an npc.
+cri  : Create an item.
+
+//FFC Values
+fd   : Set the Data value of one ffc.
+fs   : Set the Script value of one ffc.
+fc   : Set the CSet of an ffc.
+fx   : Set the X component of an ffc.
+fy   : Set the Y component of an ffc.
+fvx  : Set the X Velocity Component of an ffc.
+fvy  : Set the Y Velocity Component of an ffc.
+fax  : Set the X Accel. Component of an ffc.
+fay  : Set the XYAccel. Component of an ffc.
+ffl  : Set an ffc flag state true or false.
+fth  : Set the TileHeight of an ffc.
+ftw  : Set the TileWidth of an ffc.
+feh  : Set the EffectHeight of an ffc.
+few  : Set the EffectWidth of an ffc.
+fl   : Link an ffc to another, or clear a link.
+fm   : Write to the Misc[] values of an ffc.
+
+//Audio
+pls  : Play a sound effect.
+plm  : Play a MIDI.
+dmm  : Set the MIDI for a specific DMap to a desired ID.
+
+//Visual
+pal  : Change a DMap palette.
+mon  : Set a monochrome graphical state.
+hu   : Set a specific hue effect.
+t    : Set a specific tint effect.
+cl   : Clear hue/tint.
+
+//Misc.
+run  : Attempt to run an ffc script.
+save : Save the game.
+
+//////////////////////
+/// LITERAL VALUES ///
+//////////////////////
+Use these as srg values, if desired, instead of literals:
+lx   : The current X-coordinate for Link.
+ly   : The current Y-coordinate for Link.
+
+
+////////////////////////
+/// Syntax and Usage ///
+////////////////////////
+
+//Link's Position
+w,1,2       : w,0,32 : Warps Link to DMap 0, screen 32.
+po,1,2      : po,60,12 : Set Link's X to 60, and his Y to 12
+mx,1        : mx,12 : moves Link +12 pixels on his X coordinate
+mx,-1       : mx,-12 : moves Link -12 pixels on his X coordinate
+my,1        : my,12 : moves Link +12 pixels on his Y coordinate
+my,-1       : my,-12 : moves Link -12 pixels on his Y coordinate
+
+//Counters
+h           : h,amount
+h           : h,amount
+m           : m,amount
+a           : a,amount
+b           : b,amount
+r           : r,amount
+mb          : mb,amount
+ma          : mb,amount
+mr          : mr,amount
+k           : k,amount
+co          : co,counter_id,amount
+rh          : Refill Link's HP to full.
+rm          : Refill Link's Magic to full.
+rc,1        : rc,2 : Refill Counter CR_BOMBS to full.
+mh,1        : mh,64 : Set Link's HP to 64
+mm,1        : mm,256 : Set Link's Max Magic to 256
+mc,1,2      : mc,2,16 : Set the Bombs counter max to 16.
+
+//Items
+lk          : lk,level_id,,amount
+lm          : lm,level_id,true|false
+lc          : lc,level_id,true|false
+lt          : lt,level_id,true|false
+lb          : lb,level_id,tru|false
+itm,1,true  : itm,6,true : Set the white sword true in inventory.
+itm,1,false : itm,6,true : Set the white sword falsein inventory.
+
+//Link's States
+hb          : hb,true|false
+d           : d,true|false
+inv,true    : Set Link's Invincibility state true.
+inv,false   : Set Link's Invincibility state false.
+
+//Create Objects
+cri,1,2,3   : cri,id,x,y : cri,id,lx,ly : Create an item (id) at x,y
+crn,1,2,3   : cri,id,x,y : Create n npc (id) at x,y
+
+//FFC Values
+fc          : fc,ffc_id,cset
+fx          : fx,ffc_id,x
+fy          : fy,ffc_id,y
+fvx         : fvx,ffc_id,vx
+fvy         : fvy,ffc_id,vy
+fax         : fax,ffc_id,ax
+fay         : fay,ffc_id,ay
+ffl         : fl,ffc_id,flag_index,(true|false)
+fth         : fth,ffc_id,tileheight
+ftw         : ftw,ffc_id,tilewidth
+feh         : feh,ffc_id,effectheight
+few         : few,ffc_id,effecteidth
+fl          : fl,ffc_id,link_id
+fm          : fm,ffc_id,misc_index,value
+fd          : fd,ffc_id,combo_id
+fs          : fsscript_id
+
+//Audio
+pls         : pls,sound_id
+plm         : plm,midi_id
+dmm         : dmm,dmap_id,midi_id
+
+//Visual
+hu          : hu,red,green,blue
+t           : t,red,green,blue [,distributed (true|false)]
+pal         : pal,-1,6 : Sets the current DMap palette to 6.
+            : pal,3,6 : Sets the palette for DMap ID 3 to Palette ID 6.
+mon         : mon,5 : Sets monochrome (violet hue) mode on. (0 to disable).
+cl          : cl
+
+//Misc
+run         : run,script_id
+save        : Save the game.
+
