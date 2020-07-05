@@ -1,6 +1,6 @@
 /////////////////////////////////
 /// Debug Shell for ZC Quests ///
-/// Alpha Version 2.1.2       ///
+/// Alpha Version 2.1.3       ///
 /// 5th July, 2020            ///
 /// By: ZoriaRPG              ///
 /// Requires: 2.55 Alpha 74+  ///
@@ -101,6 +101,7 @@
 // v2.1.1  : Fixed an infinite loop hang when using backspace.
 //         : Prevent the player from moving when enqueuing commands by pressing the 'down' key.
 // v2.1.2  : Enabled option STRING_SWITCH_CASE_INSENSITIVE in match_instruction().
+// v2.1.3  : Trace stacks on runsequence(), and minor fixes to TraceStack().
 
 
 
@@ -261,6 +262,7 @@ namespace debugshell
 		//int seq_max = (id*STACK_SIZE)+STACK_SIZE;
 		for ( int q = 0; q < STACK_SIZE; ++q ) seq[q] = sequences[id*(STACK_SIZE+1)+q]; //copy the sequence set to the temp stack.
 		if ( log_actions ) printf("Tracing sequence stack (%d)\n", seq);
+		TraceStack(seq);
 		execute(seq); //run the temp stack.
 	}
 	
@@ -786,9 +788,9 @@ namespace debugshell
 		++ENQUEUED;
 		if ( log_actions ) 
 		{
-			printf("Enqueued is: %d", ENQUEUED);
+			printf("Enqueued is: %d\n", ENQUEUED);
 			TraceStack();
-			printf("SP is now: %d",SP);
+			printf("SP is now: %d\n",SP);
 		}
 		return ENQUEUED;
 	}
@@ -797,14 +799,16 @@ namespace debugshell
 	void TraceStack()
 	{
 		for ( int q = stack[TOP]; q >= 0; --q )
-		printf("Stack register [%d] had value: %d", q, stack[q]);
+		printf("Stack register [%d] had value: %d"\n, q, stack[q]);
 	}
 	
 	//Prints the full contents of a specified stack.
 	void TraceStack(int which_stack)
 	{
 		for ( int q = which_stack[TOP]; q >= 0; --q )
-		printf("Stack (%d) register [%d] had value: %d", which_stack, q, which_stack[q]);
+		printf("Stack (%d)\n",which_stack);
+
+		printf("register [%d]: %d\n", , q, which_stack[q]);
 	}
 	
 	//Aborts processing and resets out of the window.
