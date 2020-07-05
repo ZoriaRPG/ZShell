@@ -1,6 +1,6 @@
 /////////////////////////////////
 /// Debug Shell for ZC Quests ///
-/// Alpha Version 2.0.0       ///
+/// Alpha Version 2.1.0       ///
 /// 5th July, 2020            ///
 /// By: ZoriaRPG              ///
 /// Requires: 2.55 Alpha 74+  ///
@@ -33,10 +33,10 @@
 // v1.7.0 : Added MRUPEES to set the current number of max rupees as 'r,number'
 // v1.7.0 : Added KEYS to set the current number of keys as 'k,number'
 // v1.7.0 : Added BIGHITBOX to set the if Link's hitbox is large (full tile collision), or small, as 'h,t|f'
-// v1.7.0 : Added LINKDIAGONAL to set the if Link may move diagonally, as 'd,t|f'
+// v1.7.0 : Added DIAGONALMOVE to set the if Link may move diagonally, as 'd,t|f'
 // v1.7.1 : orrected a bug where RUPEES was using Game->Counter[RUPEES} insead of CR_RUPEES.
 // v1.7.1 : Added a NULL case for token[1] of command 'r', so that 'r' without any other legal char as the next token is RUPEES.
-// v1.8.0 : Added SETFFSCRIPT as 'fs,ffc_id,script_id'
+// v1.8.0 : Added FSCRIPT as 'fs,ffc_id,script_id'
 // v1.8.0 : Added SETFFCDATA as 'fs,ffc_id,combo_id'
 // v1.8.0 : Added RUNFFCSCRIPTID as 'run,script_id'
 // v1.8.0 : Fixed missing break statements in execute(stack) switch(instr). 
@@ -97,201 +97,79 @@
 // v2.0.0  : Rewritten for 2.55. Now uses switch-case on strings, an other new parser features.
 //         : Optimised; converted custom logging to internal trace and printf.
 //         : The instruction set is no longer shorthand, but can be easily edited and expanded.
+// v2.1.0  : Renamed a few commands, and added better documentation.
 
 
 
 #include "std.zh"
 
 /*
-DEFINED INSTRUCTION VALUES
-	w WARP: return 2;	//dmap,screen
-	p POS: return 2;		//x,y
-	mx MOVEX: return 1; 	//pixels (+/-)
-	my MOVEY: return 1; 	//pixels (+/-)
-	rh REFILLHP: return 0;	//aNONE
-	rm REFILLMP: return 0;	//NONE
-	rc REFILLCTR: return 1;	//counter
-	mh MAXHP: return 1;	//amount
-	mm MAXMP: return 1;	//amount
-	mc MAXCTR: return 2;	//counter, amount
-	save SAVE: return 0;	
-	cri CREATEITEM: return 3;	//id, x, y
-	crn CREATENPC: return 3;	//id, x, y
-	
-	inv INVINCIBLE: return 1;	//(BOOL) on / off
-	itm LINKITEM: return 2;	//item, (BOOL), on / off
-	pal PALETTE return 2
-	mon MONOCHROME return 1
-	
-	h BIGHITBOX
-	d LINKDIAGONAL
-	
-	a ARROWS
-	b BOMBS
-	r RUPEES
-	mb MAXBOMBS
-	ma MAXARROWS
-	mr MAXRUPEES
-	k KEYS
-	lk LKEYS
-	lm LMAP
-	lc LCOMPASS
-	lt LTRIFORCE
-	
-	hu HUE
-	t TINT
-	cl CLEARTINT
-	
-	fc FCSET 
-	fx FX
-	fy FY
-	fvx FVX
-	fvy FVY
-	fax FAX 
-	fay FAY
-	ffl FFLAGS
-	fth FTHEIGHT
-	ftw FTWIDTH 
-	feh FEHEIGHT 
-	few FEWIDTH
-	fl FLINK 
-	fm FMISC
-	
-	pls PLAYSOUND 
-	plm PLAYMIDI 
-	dmm DMAPMIDI
+Instructions, 		Args			Description
+WARP: 			dmap,screen		Warp to a specific dmap and screen.
+POS			x,y			Reposition player on the screen.
+MOVEX			pixels (+/-)		Move player by +/-n pixels on the X axis.
+MOVEY			pixels (+/-)		Move player by +/-n pixels on the Y axis.
+REFILLHP		NONE			Refill player's HP to Max.
+REFILLMP		NONE			Refill player's MP to Max.
+REFILLCTR		counter			Refill a specific counter to Max.
+MAXHP			amount			Set player's Max HP.
+MAXMP			amount			Set player's Max MP.
+MAXCTR			counter, amount		Set the maximum value of a specific counter.
+INVISIBLE		(BOOL) on / off		Set player's Invisible state.
+INVENTORY		item, (BOOL), on / off	Set the state of a specific item in player's inventory.
+BIGHITBOX		(BOOL) on / off		Set if player sprite uses a full tile hitbox. (hitbox)
+DIAGONALMOVE		(BOOL) on / off		Set if player can move diagonally.
 
-//COMMAND LIST
-	w: Warp Link to a specific dmap and screen
-	p: Reposition Link on the screen.
-	mx: Move link by +/-n pixels on the X axis.
-	my: Move link by +/-n pixels on the Y axis.
-	rh: Refill Link's HP to Max.
-	rm: Refill Link's HP to Max.
-	rc: Refill a specific counter to Max.
-	mh: Set Link's Max HP.
-	mm: Set Link's Max MP
-	mc: Set the maximum value of a specific counter.
-	inv: Set Link's Invisible state.
-	itm: Set the state of a specific item in Link's inventory.
-	save: Save the game.
-	cri: Create an item.
-	crn: Create an npc.
-	pal: Change a DMap palette; -1 for current dmap. 
-	mono: Set monochrome effect.
+SAVE			NONE			Save the game.
+CREATEITEM		id, x, y		Create an item at coordinates x, y. 
+CREATENPC		id, x, y		Create an enemy at coordinates x, y.
+
+PALETTE			dmap,pal		Change a DMap palette; -1 for current dmap.
+MONOCHROME 		(BOOL) on / off		Set monochrome effect.
+
 	
-	h: Set if Link uses a full tile hitbox. (hitbox)
-	d: Set if Link can move diagonally.
+ARROWS			amount			Set the current number of Arrows
+BOMBS			amount			Set the current number of Bombs
+RUPEES			amount			Set the current number of Rupees
+MAXBOMBS		amount			Set the current number of Max Bombs
+MAXARROWS		amount			Set the current number of Max Arrows
+MAXRUPEES		amount			Set the current number of Max Rupees
+KEYS			amount			Set the current number of Keys
+LKEYS			level id, number	Set the current number of Level Keys for a specific level ID.
+LMAP			level id, (BOOL) t|f	Set if the MAP item for a specific Level is in inventory.
+LCOMPASS		level id, (BOOL) t|f	Set if the COMPASS item for a specific Level is in inventory.
+LTRIFORCE		level id, (BOOL) t|f	Set if the TRIFORCE item for a specific Level is in inventory.
+LBOSSKEY		level id, (BOOL) t|f	Set if the BOSS KEy item for a specific Level is in inventory.
+
+HUE			r, g, b, (BOOL) t|f	Set a specific hue effect.
+TINT			r, g, b			Set a specific tint effect.
+CLEARTINT		NONE			Clear hue/tint.
 	
-	a: Set the current number of Arrows
-	b: Set the current number of Bombs
-	r: Set the current number of Rupees
-	mb: Set the current number of Max Bombs
-	ma: Set the current number of Max Arrows
-	mr: Set the current number of Max Rupees
-	k: Set the current number of Keys
-	lk: Set the current number of Level Keys for a specific level ID.
-	lm: Set if the MAP item for a specific Level is in inventory.
-	lc: Set if the COMPASS item for a specific Level is in inventory.
-	lt: Set if the TRIFORCE item for a specific Level is in inventory.
-	lb: Set if the BOSS KEy item for a specific Level is in inventory.
+FDATA			id, combo_id		Set the Data value of one ffc.
+FSCRIPT			id, scriptnumber	Set the Script value of one ffc.
+FCSET 			id, cset		Set the CSet of an ffc. 
+FX			id, x			Set the X component of an ffc.
+FY			id, y			Set the Y component of an ffc.
+FVX			id, vx			Set the X Velocity Component of an ffc.
+FVY			id, vy			Set the Y Velocity Component of an ffc.
+FAX 			id, ax			Set the X Accel. Component of an ffc. 
+FAY			id, ay			Set the XYAccel. Component of an ffc. 
+FFLAGS			id, flag, (BOOL) t|f	Set an ffc flag state true or false.
+FTHEIGHT		id, tileheight		Set the TileHeight of an ffc.
+FTWIDTH 		id, tilewidth		Set the TileWidth of an ffc.
+FEHEIGHT 		id, effectheight	Set the EffectHeight of an ffc.
+FEWIDTH			id, effectwidth		Set the EffectWidth of an ffc.
+FLINK 			id, link_id		Link an ffc to another, or clear a link. 
+FMISC			id, index, value	Write to the Misc[] values of an ffc.
+
+RUNFFCSCRIPTID		scriptid		Attempt to run an ffc script.
 	
-	fd: Set the Data value of one ffc.
-	fs: Set the Script value of one ffc.
-	run: Attempt to run an ffc script.
-	
-	hu: Set a specific hue effect.
-	t: Set a specific tint effect.
-	cl: Clear hue/tint.
-	
-	fc: Set the CSet of an ffc. 
-	fx: Set the X component of an ffc.
-	fy: Set the Y component of an ffc.
-	fvx: Set the X Velocity Component of an ffc.
-	fvy: Set the Y Velocity Component of an ffc.
-	fax: Set the X Accel. Component of an ffc. 
-	fay: Set the XYAccel. Component of an ffc. 
-	
-	ffl: Set an ffc flag state true or false.
-	fth: Set the TileHeight of an ffc.
-	ftw: Set the TileWidth of an ffc.
-	feh: Set the EffectHeight of an ffc.
-	few: Set the EffectWidth of an ffc.
-	fl: Link an ffc to another, or clear a link. 
-	fm: Write to the Misc[] values of an ffc.
-	
-	pls: Play a sound effect. 
-	plm: Play a MIDI. 
-	dmm: Set the MIDI for a specific DMap to a desired ID.
-	
-//SYNTAX
-//command,args
-	w,1,2
-	p,1,2
-	mx,1
-	mx,-1
-	my,1
-	my,-1
-	rh
-	rm
-	rc,1
-	mh,1
-	mm,1
-	mc,1,2
-	inv,true
-	inv,false
-	itm,1,true
-	itm,1,false
-	save
-	cri,1,2,3 //id,x,y
-	crn,1,2,3 //id,x,y
-	pal,1,2 //dmap (-1 for current), palette
-	mono,1 : mono,type
-	h,true|false
-	d,true|false
-	
-	a,1
-	b,1
-	r,1
-	mb,1
-	ma,1
-	mr,1
-	k,1
-	lk,1,2 (level id, number)
-	lm,1,t|f (level id, true|false)
-	lc,1,t|f (level id, true|false)
-	lt,1,t|f (level id, true|false)
-	lb,1,t|f (level id, true|false)
-	
-	fd,1,2 (fs,ffc_id,combo_id)
-	fs,1,2 (fs,ffc_id,script_id)
-	run,1 (run,ffc_script_id)
-	
-	hu,1,2,3,t|f (hu,red,green,blue,true|false)
-	t,1,2,3 (t,red,green,blue)
-	cl
-	
-	fc,1,2 (fs,ffc_id,cset)
-	fx,1,2 (fs,ffc_id,x)
-	fy,1,2 (fs,ffc_id,y)
-	fvx,1,2 (fs,ffc_id,vx)
-	fvy,1,2 (fs,ffc_id,vy)
-	fax,1,2 (fs,ffc_id,ax)
-	fay,1,2 (fs,ffc_id,ay)
-	
-	ffl,1,2,t|f  (fs,ffc_id,flag,true|false)
-	fth,1,2 (fs,ffc_id,tileheight)
-	ftw,1,2 (fs,ffc_id,tilewidth)
-	feh,1,2 (fs,ffc_id,effectheight)
-	few,1,2 (fs,ffc_id,effectwidth)
-	fl,1,2 (fs,ffc_id,link_id)
-	fm,1,2,3 (fs,ffc_id,index,value)
-	
-	pls,1 (pls,sound_id)
-	plm,1 (pls,midi_id)
-	dmm,1,2 (dmm,dmap_id,midi_id)
-	
-		
+PLAYSOUND 		sound_id		Play a sound effect.
+PLAYMIDI 		midi_id			Play a MIDI. 
+DMAPMIDI		dmap_id, midi_id	Set the MIDI for a specific DMap to a desired ID.
+
+%D:			*number			Traces the number after :
+%S:			*string			Traces all text after :
 
 */
 
@@ -572,8 +450,8 @@ namespace debugshell
 		MAXMP,		//amount
 		MAXCTR,		//counter, amount
 		
-		INVINCIBLE,	//(BOOL) on / off
-		LINKITEM,	//item, (BOOL), on / off
+		INVISIBLE,	//(BOOL) on / off
+		INVENTORY,	//item, (BOOL), on / off
 		SAVE,		//item, (BOOL), on / off
 		CREATEITEM,	//item, (BOOL), on / off
 		CREATENPC,	//item, (BOOL), on / off
@@ -590,13 +468,13 @@ namespace debugshell
 		LMAP,		//level map, level id, true|false
 		LBOSSKEY,	//level map, level id, true|false
 		BIGHITBOX,	//level map, level id, true|false
-		LINKDIAGONAL,	//level map, level id, true|false
+		DIAGONALMOVE,	//level map, level id, true|false
 		LTRIFORCE,	//level map, level id, true|false
 		LCOMPASS,	//level map, level id, true|false
 		
 		RUNFFCSCRIPTID,
-		SETFFSCRIPT,
-		SETFFDATA,
+		FSCRIPT,
+		FDATA,
 		
 		TINT,
 		HUE,
@@ -650,8 +528,8 @@ namespace debugshell
 			case MAXMP: return 1;	//amount
 			case MAXCTR: return 2;	//counter, amount
 			
-			case INVINCIBLE: return 1;	//(BOOL) on / off
-			case LINKITEM: return 2;	//item, (BOOL), on / off
+			case INVISIBLE: return 1;	//(BOOL) on / off
+			case INVENTORY: return 2;	//item, (BOOL), on / off
 			case SAVE: return 0;	//item, (BOOL), on / off
 			case CREATEITEM: return 3;	//item, (BOOL), on / off
 			case CREATENPC: return 3;	//item, (BOOL), on / off
@@ -671,10 +549,10 @@ namespace debugshell
 			case LTRIFORCE: return 2;	//level bosskey, level id, true|false
 			case LCOMPASS: return 2;	//level bosskey, level id, true|false
 			case BIGHITBOX: return 1;	//true|false
-			case LINKDIAGONAL: return 1;	//true|false
+			case DIAGONALMOVE: return 1;	//true|false
 			case RUNFFCSCRIPTID: return 1;
-			case SETFFSCRIPT: return 2;
-			case SETFFDATA: return 2;
+			case FSCRIPT: return 2;
+			case FDATA: return 2;
 			
 			case TINT: return 3;
 			case HUE: return 4;
@@ -743,8 +621,8 @@ namespace debugshell
 			case "MAXHP": return MAXHP;
 			case "MAXMP": return MAXMP;
 			case "MAXCTR": return MAXCTR;
-			case "INVINCIBLE": return INVINCIBLE;
-			case "LINKITEM": return LINKITEM;
+			case "INVISIBLE": return INVISIBLE;
+			case "INVENTORY": return INVENTORY;
 			case "SAVE": return SAVE;
 			case "CREATEITEM": return CREATEITEM;
 			case "CREATENPC": return CREATENPC;
@@ -761,12 +639,12 @@ namespace debugshell
 			case "LMAP": return LMAP;
 			case "LBOSSKEY": return LBOSSKEY;
 			case "BIGHITBOX": return BIGHITBOX;
-			case "LINKDIAGONAL": return LINKDIAGONAL;
+			case "DIAGONALMOVE": return DIAGONALMOVE;
 			case "LTRIFORCE": return LTRIFORCE;
 			case "LCOMPASS": return LCOMPASS;
 			case "RUNFFCSCRIPTID": return RUNFFCSCRIPTID;
-			case "SETFFSCRIPT": return SETFFSCRIPT;
-			case "SETFFDATA": return SETFFDATA;
+			case "FSCRIPT": return FSCRIPT;
+			case "FDATA": return FDATA;
 			case "TINT": return TINT;
 			case "HUE": return HUE;
 			case "CLEARTINT": return CLEARTINT;
@@ -1169,13 +1047,13 @@ namespace debugshell
 					break; 
 				}
 				
-				case INVINCIBLE:
+				case INVISIBLE:
 				{
 					Link->Invisible = (args[0]) ? true : false;
 					if ( log_actions ) printf("Cheat system set Link's Invisibility state to (%s)\n", ((args[0]) ? "true" : "false"));
 					break;
 				}
-				case LINKITEM: 
+				case INVENTORY: 
 				{
 					itemdata id = Game->LoadItemData(args[0]);
 					if ( id->Keep )
@@ -1233,7 +1111,7 @@ namespace debugshell
 				case MRUPEES: Game->MCounter[CR_RUPEES] = args[0]; break;
 				
 				case LKEYS: Game->LKeys[args[0]] = args[1]; break;
-				case LINKDIAGONAL: Link->Diagonal = (args[0] ? true : false); break;
+				case DIAGONALMOVE: Link->Diagonal = (args[0] ? true : false); break;
 				case BIGHITBOX: Link->BigHitbox = (args[0] ? true : false); break;
 				
 				case LMAP: 
@@ -1256,12 +1134,12 @@ namespace debugshell
 					( args[1] ) ? (Game->LItems[args[0]] |= LI_TRIFORCE) : (Game->LItems[args[0]] ~=LI_TRIFORCE);
 					break;
 				}
-				case SETFFDATA: 
+				case FDATA: 
 				{
 					Screen->LoadFFC(args[0])->Data = args[1];
 					break;
 				}
-				case SETFFSCRIPT: 
+				case FSCRIPT: 
 				{
 					Screen->LoadFFC(args[0])->Script = args[1];
 					break;
