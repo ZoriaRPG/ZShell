@@ -1,9 +1,9 @@
 /////////////////////////////////
 /// Debug Shell for ZC Quests ///
-/// Alpha Version 1.14.4      ///
-/// 3rd November, 2018        ///
+/// Alpha Version 2.0.0       ///
+/// 5th July, 2020            ///
 /// By: ZoriaRPG              ///
-/// Requires: ZC Necromancer  ///
+/// Requires: 2.55 Alpha 74+  ///
 /////////////////////////////////
 //
 // v1.2   : Finished working code. now it all functions as I intend.
@@ -94,11 +94,13 @@
 // v1.14.2 : TRACE now eats all leading spaces and colons, instead of using a hardcoded offset.
 // v1.14.3 : Moved a number of traces into 'if ( log_actions ) ' statements, and disabled others. 
 // v1.14.4 : Fixed a bug where holding down a shift key would only modify the very next character. 
+// v2.0.0  : Rewritten for 2.55. Now uses switch-case on strings, an other new parser features.
+//         : Optimised; converted custom logging to internal trace and printf.
+//         : The instruction set is no longer shorthand, but can be easily edited and expanded.
 
 
 
-
-import "std.zh"
+#include "std.zh"
 
 /*
 DEFINED INSTRUCTION VALUES
@@ -293,48 +295,92 @@ DEFINED INSTRUCTION VALUES
 
 */
 
-script typedef ffc namespace;
-typedef const int define;
-typedef const int CFG;
-
-
-
-namespace script debugshell
+namespace debugshell
 {
-	CFG INVISIBLE_COMBO = 1;
+	typedef const int CFG;
 	
-	define INSTRUCTION_SIZE = 1; //The number of stack registers that any given *instruction* requires.
-	define MAX_INSTR_QUEUE = 20; //The number of instructions that can be enqueued. 
-	define MAX_ARGS 	= 4; //The maximum number of args that any instruction can use/require. 
-	define STACK_SIZE 	= 2 + ((INSTRUCTION_SIZE+MAX_ARGS)*MAX_INSTR_QUEUE);  //+2 now includes TOP
-	define MAX_TOKEN_LENGTH = 100;
-	define BUFFER_LENGTH 	= 42;
+	//Stack and Queue
+	const int INSTRUCTION_SIZE 	= 1; //The number of stack registers that any given *instruction* requires.
+	const int MAX_INSTR_QUEUE 	= 20; //The number of instructions that can be enqueued. 
+	const int MAX_ARGS 		= 4; //The maximum number of args that any instruction can use/require. 
+	const int STACK_SIZE 		= 2 + ((INSTRUCTION_SIZE+MAX_ARGS)*MAX_INSTR_QUEUE);  //+2 now includes TOP
+	const int MAX_TOKEN_LENGTH 	= 100;
+	const int BUFFER_LENGTH 	= 42;
+	
+	const int TOP 			= ((INSTRUCTION_SIZE+MAX_ARGS)*MAX_INSTR_QUEUE)+1;
+	
+	const int rERROR 		= 0;
+	const int rRAW 			= 1;
+	const int rENQUEUED 		= 2;
+	const int SEQUENCES 		= 10;
+	
+	//Stack global variables and arrays
 	int stack[STACK_SIZE];
 	int SP;
 	int ENQUEUED;
-	define TOP = ((INSTRUCTION_SIZE+MAX_ARGS)*MAX_INSTR_QUEUE)+1;
 	int debug_buffer[BUFFER_LENGTH];
-	define rERROR = 0;
-	define rRAW = 1;
-	define rENQUEUED = 2;
-	define SEQUENCES = 10;
 	int sequences[(STACK_SIZE+1)*SEQUENCES];
 	
+	const int YES = 1;
+	const int NO = 0;
 	
+	//Configuration
+	
+	//Debugging
+	CFG log_actions 	= NO;
+	
+	//Window Settings
+	
+	CFG WINDOW_F_KEY 	= 53; //We use F7 to open the debug window. 
+	
+	CFG W_COLOUR 		= 0x03; //window colour (background), black
+	CFG W_S_COLOUR 		= 0xC5; //window colour (background), black
+	CFG WINDOW_X 		= 15; //window indent over screen
+	CFG WINDOW_Y 		= 19; //window indent over screen
+	CFG WINDOW_H 		= 50;//CHAR_WIDTH * BUFFER_LENGTH;
+	CFG WINDOW_W 		= 180; //CHAR_HEIGHT * 3;
+	CFG WINDOW_S_X 		= 12; //window indent over screen
+	CFG WINDOW_S_Y 		= 16; //window indent over screen
+	CFG WINDOW_S_H 		= 50; //CHAR_WIDTH * BUFFER_LENGTH;
+	CFG WINDOW_S_W 		= 180; //CHAR_HEIGHT * 3;
+	CFG W_OPACITY 		= OP_OPAQUE; //Window translucency.
+	CFG W_LAYER 		= 6; //window draw layer
+	
+	//Font and Character Generator
+	CFG FONT 		= FONT_APPLE2; //Apple II
+	CFG F_COLOUR 		= 0x01; //font colour, white
+	CFG F_BCOLOUR 		= -1; //font background colour, translucent
+	CFG F_OPACITY 		= OP_OPAQUE; //Font translucency.
+	CFG F_LAYER 		= 6; //font draw layer
+	CFG CHAR_WIDTH 		= 6; //5 + one space
+	CFG CHAR_HEIGHT 	= 9; //8 + one space
+	CFG CHAR_X 		= 2; //Initial x indent
+	CFG CHAR_Y 		= 2; //Initial y indent
+	
+	//Keyboard
+	CFG KEY_DELAY 		= 6; //frames between keystrokes
+	CFG TYPESFX = 63;
+	
+	//Misc
+	CFG INVISIBLE_COMBO = 1;
+	
+	
+	//Runs a saved/enqueued sequence.
 	void runsequence(int id)
 	{
 		int seq[STACK_SIZE+1];
 		ENQUEUED = sequences[(id*STACK_SIZE)+STACK_SIZE]-1; //the last value is the number of instructions that were enqueued.
-		if ( log_actions ) TraceError("Sequence ENQUEUED is: ",ENQUEUED);
+		if ( log_actions ) printf("Sequence ENQUEUED is: \n",ENQUEUED);
 		//int seq_max = (id*STACK_SIZE)+STACK_SIZE;
 		for ( int q = 0; q < STACK_SIZE; ++q ) seq[q] = sequences[id*(STACK_SIZE+1)+q]; //copy the sequence set to the temp stack.
-		if ( log_actions ) TraceErrorS("Tracing sequence stack.", " ");
-		if ( log_actions ) TraceStack(seq);
+		if ( log_actions ) printf("Tracing sequence stack (%d)\n", seq);
 		execute(seq); //run the temp stack.
 	}
+	
+	//Saves a queue.
 	int savesequence(int id)
 	{
-		if ( log_actions ) TraceError("Saving sequence, ID: ",id);
+		if ( log_actions ) printf("Saving sequence, ID: %d\n",id);
 		//int seq_max = (id*STACK_SIZE)+STACK_SIZE;
 		for ( int q = 0; q < STACK_SIZE; ++q ) 
 		{
@@ -346,78 +392,48 @@ namespace script debugshell
 		abort();
 		return id;
 	}
-	int sizeof(int p) { return SizeOfArray(p); }
 	
-	define YES = 1;
-	define NO = 0;
-	
-	CFG log_actions = NO;
-	CFG WINDOW_F_KEY = 53; //We use F7 to open the debug window. 
-	
-	
-	define FONT = FONT_APPLE2; //Apple II
-	define F_COLOUR = 0x01; //font colour, white
-	define F_BCOLOUR = -1; //font background colour, translucent
-	define W_COLOUR = 0x03; //window colour (background), black
-	define W_S_COLOUR = 0xC5; //window colour (background), black
-	define CHAR_WIDTH = 6; //5 + one space
-	define CHAR_HEIGHT = 9; //8 + one space
-	define WINDOW_X = 15; //window indent over screen
-	define WINDOW_Y = 19; //window indent over screen
-	define WINDOW_H = 50;//CHAR_WIDTH * BUFFER_LENGTH;
-	define WINDOW_W = 180; //CHAR_HEIGHT * 3;
-	define WINDOW_S_X = 12; //window indent over screen
-	define WINDOW_S_Y = 16; //window indent over screen
-	define WINDOW_S_H = 50; //CHAR_WIDTH * BUFFER_LENGTH;
-	define WINDOW_S_W = 180; //CHAR_HEIGHT * 3;
-	define CHAR_X = 2; //Initial x indent
-	define CHAR_Y = 2; //Initial y indent
-	define W_OPACITY = OP_OPAQUE; //Window translucency.
-	define F_OPACITY = OP_OPAQUE; //Font translucency.
-	define W_LAYER = 6; //window draw layer
-	define F_LAYER = 6; //font draw layer
-	
-	CFG KEY_DELAY = 6; //frames between keystrokes
-	
-	define TYPESFX = 63;
-	
+	//Run the Interpreter on a given script
 	void process()
 	{
 		if ( Input->ReadKey[WINDOW_F_KEY] ) //46+WINDOW_F_KEY] )
 		{
-			if ( log_actions ) TraceS("Enabled Debug Shell");
-			int typeval = type();
-			if ( typeval == rRAW ) //maybe type should be int with 0 being no return, 1 being enqueued, and 2 being raw?
+			if ( log_actions ) TraceS("Enabled Debug Shell\n");
+			int typeval = type(); //We want to read from the typing buffer, and store the type output. 
+			switch(typeval)
 			{
-				if ( log_actions ) TraceS("process() evaluated type() true");
-				if ( !ENQUEUED ) 
+				case rRAW: //maybe type should be int with 0 being no return, 1 being enqueued, and 2 being raw?
 				{
-					int r = read(debug_buffer,false);
-					if ( r ) execute(stack);
+					if ( log_actions ) TraceS("process() evaluated type() true\n");
+					unless ( ENQUEUED ) 
+					{
+						int r = read(debug_buffer,false);
+						if ( r ) execute(stack);
+					}
+					else execute(stack);
+					break;
 				}
-				else execute(stack);
-			}
-			else if ( typeval == rENQUEUED ) //maybe type should be int with 0 being no return, 1 being enqueued, and 2 being raw?
-			{
-				if ( log_actions ) TraceS("process() evaluated type() true");
-				--ENQUEUED;
-				execute(stack);
-			}
-			else 
-			{
-				if ( log_actions ) TraceErrorS("type() returned: ", "false");
-				Link->PressStart = false;
-				Link->InputStart = false;
+				case rENQUEUED: //maybe type should be int with 0 being no return, 1 being enqueued, and 2 being raw?
+				{
+					if ( log_actions ) TraceS("process() evaluated type() true\n");
+					--ENQUEUED;
+					execute(stack);
+				}
+				default: 
+				{
+					if ( log_actions ) TraceS("type() returned: false");
+					Link->PressStart = false;
+					Link->InputStart = false;
+				}
 			}
 		}
 	}
 	
-	//if ( type() execute(stack) )
-	//returns true if the user presses enter
+	//Process user typing
 	int type()
 	{
 		int frame = 0;
-		if ( !frame && log_actions ) TraceS("Starting type()");
+		if ( !frame && log_actions ) TraceS("Starting type()\n");
 		++frame;
 		Game->TypingMode = true;
 		int key_timer; int buffer_pos = 0;
@@ -425,108 +441,100 @@ namespace script debugshell
 		//while(!Input->ReadKey[KEY_ENTER] || Input->ReadKey[KEY_ENTER_PAD])
 		while(typing)
 		{
-			//if ( key_timer <= 0 )
-			//{
-				if ( Input->ReadKey[KEY_BACKSPACE] ) //backspace
+			if ( Input->ReadKey[KEY_BACKSPACE] ) //backspace
+			{
+				
+				if ( buffer_pos > 0 )
 				{
-					
-					if ( buffer_pos > 0 )
+					debug_buffer[buffer_pos] = 0;
+					--buffer_pos;
+					debug_buffer[buffer_pos] = 0;
+				}
+				key_timer = KEY_DELAY;
+				continue;
+			}
+			else if ( Input->ReadKey[KEY_DOWN] )
+			{
+				e = enqueue();
+				if ( log_actions ) printf("type() enqueued an instruction, queue ID: %d", e);
+				
+			}
+			else if ( Input->ReadKey[KEY_ENTER] || Input->ReadKey[KEY_ENTER_PAD] ) 
+			{
+				Game->TypingMode = false;
+				//TraceNL(); TraceS("Read enter key, and buffer position is: "); Trace(buffer_pos); TraceNL();
+				unless ( buffer_pos ) 
+				{
+					unless ( ENQUEUED ) return 0; //do not execute if there are no commands
+					else return rENQUEUED;
+				}
+				else //we've typed something
+				{
+					if ( ENQUEUED ) 
 					{
-						debug_buffer[buffer_pos] = 0;
-						--buffer_pos;
-						debug_buffer[buffer_pos] = 0;
+						e = enqueue(); return rENQUEUED; //also enqueue this line
 					}
-					key_timer = KEY_DELAY;
-					continue;
+					else return rRAW;
 				}
-				else if ( Input->ReadKey[KEY_DOWN] )
+			}
+			else if ( Input->Key[KEY_LCONTROL] || Input->Key[KEY_RCONTROL] )
+			{
+				for ( int q = 0; q < 10; ++q )
 				{
-					e = enqueue();
-					if ( log_actions ) TraceError("type() enqueued an instruction, queue ID: ", e);
-					
+					if ( Input->ReadKey[KEY_0+q] ) { savesequence(q); return 0; }
 				}
-				else if ( Input->ReadKey[KEY_ENTER] || Input->ReadKey[KEY_ENTER_PAD] ) 
+			}
+			else if ( EscKey() ) 
+			{
+				for ( int q = 0; q < BUFFER_LENGTH; ++q ) debug_buffer[q] = 0;
+				clearstack();
+				
+				Game->TypingMode = false;
+				return 0; //exit and do not process.
+			}
+			
+			else
+			{
+				//else normal key
+				int k; 
+				int LegalKeys[]= //wish that we had const arrays
 				{
-					Game->TypingMode = false;
-					//TraceNL(); TraceS("Read enter key, and buffer position is: "); Trace(buffer_pos); TraceNL();
-					if ( !buffer_pos ) 
+					KEY_A, KEY_B, KEY_C, KEY_D, KEY_E, KEY_F, KEY_G, KEY_H, 
+					KEY_I, KEY_J, KEY_K, KEY_L, KEY_M, KEY_N, KEY_O, KEY_P, 
+					KEY_Q, KEY_R, KEY_S, KEY_T, KEY_U, KEY_V, KEY_W, KEY_X, 
+					KEY_Y, KEY_Z, KEY_0, KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, 
+					KEY_6, KEY_7, KEY_8, KEY_9, KEY_0_PAD, KEY_1_PAD, KEY_2_PAD, 
+					KEY_3_PAD, KEY_4_PAD, KEY_5_PAD,
+					KEY_6_PAD, KEY_7_PAD, KEY_8_PAD, KEY_9_PAD, KEY_STOP, //period
+					KEY_TILDE, 
+					KEY_MINUS, 
+					KEY_EQUALS, KEY_OPENBRACE, KEY_CLOSEBRACE,
+					KEY_COLON, KEY_QUOTE, KEY_BACKSLASH, KEY_BACKSLASH2, 
+					KEY_COMMA, 
+					KEY_SEMICOLON, KEY_SLASH, KEY_SPACE, KEY_SLASH_PAD,
+					KEY_ASTERISK, 
+					KEY_MINUS_PAD,
+					KEY_PLUS_PAD, KEY_CIRCUMFLEX, KEY_COLON2, KEY_EQUALS_PAD, KEY_STOP 
+				};
+
+				
+				for ( int kk = SizeOfArray(LegalKeys)-1; kk >= 0; --kk )
+				{
+					k = LegalKeys[kk];
+					if ( Input->ReadKey[k] )
 					{
-						if ( !ENQUEUED ) return 0; //do not execute if there are no commands
-						else return rENQUEUED;
+						//TraceS("Read a key: "); Trace(k); TraceNL();
+						debug_buffer[buffer_pos] = KeyToChar(k,(Input->Key[KEY_LSHIFT])||(Input->Key[KEY_RSHIFT])); //Warning!: Some masking may occur. :P
+						//TraceNL(); TraceS(debug_buffer); TraceNL();
+						++buffer_pos;
+						key_timer = KEY_DELAY;
+						break;
 					}
-					else //we've typed something
-					{
-						if ( ENQUEUED ) 
-						{
-							e = enqueue(); return rENQUEUED; //also enqueue this line
-						}
-						else return rRAW;
-					}
-				}
-				else if ( Input->Key[KEY_LCONTROL] || Input->Key[KEY_RCONTROL] )
-				{
-					if ( Input->ReadKey[KEY_0] ) { savesequence(0); return 0; }
-					else if ( Input->ReadKey[KEY_1] ) { savesequence(1); return 0; }
-					else if ( Input->ReadKey[KEY_2] ) { savesequence(2); return 0; }
-					else if ( Input->ReadKey[KEY_3] ) { savesequence(3); return 0; }
-					else if ( Input->ReadKey[KEY_4] ) { savesequence(4); return 0; }
-					else if ( Input->ReadKey[KEY_5] ) { savesequence(5); return 0; }
-					else if ( Input->ReadKey[KEY_6] ) { savesequence(6); return 0; }
-					else if ( Input->ReadKey[KEY_7] ) { savesequence(7); return 0; }
-					else if ( Input->ReadKey[KEY_8] ) { savesequence(8); return 0; }
-					else if ( Input->ReadKey[KEY_9] ) { savesequence(9); return 0; }
-				}
-				else if ( EscKey() ) 
-				{
-					for ( int q = 0; q < BUFFER_LENGTH; ++q ) debug_buffer[q] = 0;
-					clearstack();
-					
-					Game->TypingMode = false;
-					return 0; //exit and do not process.
 				}
 				
-				else
-				{
-					//else normal key
-					int k; 
-					int LegalKeys[]= 
-					{
-						KEY_A, KEY_B, KEY_C, KEY_D, KEY_E, KEY_F, KEY_G, KEY_H, 
-						KEY_I, KEY_J, KEY_K, KEY_L, KEY_M, KEY_N, KEY_O, KEY_P, 
-						KEY_Q, KEY_R, KEY_S, KEY_T, KEY_U, KEY_V, KEY_W, KEY_X, 
-						KEY_Y, KEY_Z, KEY_0, KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, 
-						KEY_6, KEY_7, KEY_8, KEY_9, KEY_0_PAD, KEY_1_PAD, KEY_2_PAD, 
-						KEY_3_PAD, KEY_4_PAD, KEY_5_PAD,
-						KEY_6_PAD, KEY_7_PAD, KEY_8_PAD, KEY_9_PAD, KEY_STOP, //period
-						KEY_TILDE, 
-						KEY_MINUS, 
-						KEY_EQUALS, KEY_OPENBRACE, KEY_CLOSEBRACE,
-						KEY_COLON, KEY_QUOTE, KEY_BACKSLASH, KEY_BACKSLASH2, 
-						KEY_COMMA, 
-						KEY_SEMICOLON, KEY_SLASH, KEY_SPACE, KEY_SLASH_PAD,
-						KEY_ASTERISK, 
-						KEY_MINUS_PAD,
-						KEY_PLUS_PAD, KEY_CIRCUMFLEX, KEY_COLON2, KEY_EQUALS_PAD, KEY_STOP 
-					};
-
-					
-					for ( int kk = SizeOfArray(LegalKeys)-1; kk >= 0; --kk )
-					{
-						k = LegalKeys[kk];
-						if ( Input->ReadKey[k] )
-						{
-							//TraceS("Read a key: "); Trace(k); TraceNL();
-							debug_buffer[buffer_pos] = KeyToChar(k,(Input->Key[KEY_LSHIFT])||(Input->Key[KEY_RSHIFT])); //Warning!: Some masking may occur. :P
-							//TraceNL(); TraceS(debug_buffer); TraceNL();
-							++buffer_pos;
-							key_timer = KEY_DELAY;
-							break;
-						}
-					}
-					
-					//continue;
-				}
-			//}
+				//continue;
+			}
+			
 			//else { --key_timer; }
 			if ( e )
 			{
@@ -540,6 +548,7 @@ namespace script debugshell
 		
 	}
 	
+	//Draws the Shell
 	void draw()
 	{
 		Screen->Rectangle(W_LAYER, WINDOW_S_X, WINDOW_S_Y, WINDOW_S_X+WINDOW_W, WINDOW_S_Y+WINDOW_H, W_S_COLOUR, 1, 0,0,0,true,W_OPACITY);
@@ -547,100 +556,83 @@ namespace script debugshell
 		Screen->DrawString(F_LAYER,WINDOW_X+CHAR_X,WINDOW_Y+CHAR_Y,FONT,F_COLOUR,F_BCOLOUR,0,debug_buffer,F_OPACITY);
 	}
 	
-	void TraceErrorS(int s, int s2)
+	//List of instructions
+	enum instructions
 	{
-		TraceS(s); TraceS(": "); TraceS(s2); TraceNL();
-	}
+		//instruction	//variables
+		NONE,		//NONE 
+		WARP,		//dmap,screen
+		POS,		//x,y
+		MOVEX,		//pixels (+/-)
+		MOVEY,		//pixels (+/-)
+		REFILLHP,	//aNONE
+		REFILLMP,	//NONE
+		REFILLCTR,	//counter
+		MAXHP,		//amount
+		MAXMP,		//amount
+		MAXCTR,		//counter, amount
+		
+		INVINCIBLE,	//(BOOL) on / off
+		LINKITEM,	//item, (BOOL), on / off
+		SAVE,		//item, (BOOL), on / off
+		CREATEITEM,	//item, (BOOL), on / off
+		CREATENPC,	//item, (BOOL), on / off
+		PALETTE,	//item, (BOOL), on / off
+		MONOCHROME,	//item, (BOOL), on / off
+		BOMBS,		//item, (BOOL), on / off
+		MBOMBS,		//item, (BOOL), on / off
+		ARROWS,		//item, (BOOL), on / off
+		MARROWS,	//item, (BOOL), on / off
+		KEYS,		//item, (BOOL), on / off
+		LKEYS,		//item, (BOOL), on / off
+		RUPEES,		//item, (BOOL), on / off
+		MRUPEES,	//item, (BOOL), on / off
+		LMAP,		//level map, level id, true|false
+		LBOSSKEY,	//level map, level id, true|false
+		BIGHITBOX,	//level map, level id, true|false
+		LINKDIAGONAL,	//level map, level id, true|false
+		LTRIFORCE,	//level map, level id, true|false
+		LCOMPASS,	//level map, level id, true|false
+		
+		RUNFFCSCRIPTID,
+		SETFFSCRIPT,
+		SETFFDATA,
+		
+		TINT,
+		HUE,
+		CLEARTINT,
+		
+		FCSET,
+		FX,
+		FY,
+		FVX,
+		FVY,
+		FAX,
+		FAY,
+		FFLAGS, //ffc flags
+		FTHEIGHT,
+		FTWIDTH,
+		FEHEIGHT,
+		FEWIDTH,
+		FLINK,
+		FMISC,
+		
+		PLAYSOUND,
+		PLAYMIDI,
+		DMAPMIDI,
+		
+		SETLIFE,
+		SETMAGIC,
+		SETCOUNTER,
+		
+		SAVESEQUENCE,
+		RUNSEQUENCE,
+		
+		TRACE,
+		INSTRUCTIONSEND
+	};
 	
-	void TraceError(int s, float v, float v2)
-	{
-		int buf[12]; int buf2[12];
-		ftoa(buf,v);
-		ftoa(buf2,v2);
-		TraceS(s); TraceS(": "); TraceS(buf); TraceS(", "); TraceS(buf2); TraceNL();
-	}
-	
-	void TraceErrorVS(int s, float v, int s2)
-	{
-		int buf[12];
-		ftoa(buf,v);
-		TraceS(s); TraceS(": "); TraceS(buf); TraceS(", "); TraceS(s2); TraceNL();
-	}
-	
-	//instruction		//variables
-	define NONE	= 	0;	//NONE 
-	define WARP 	= 	1;	//dmap,screen
-	define POS 	= 	2;	//x,y
-	define MOVEX 	= 	3;	//pixels (+/-)
-	define MOVEY 	= 	4;	//pixels (+/-)
-	define REFILLHP = 	5;	//aNONE
-	define REFILLMP = 	6;	//NONE
-	define REFILLCTR = 	7;	//counter
-	define MAXHP 	= 	8;	//amount
-	define MAXMP 	= 	9;	//amount
-	define MAXCTR 	= 	10;	//counter, amount
-	
-	define INVINCIBLE = 	11;	//(BOOL) on / off
-	define LINKITEM = 	12;	//item, (BOOL), on / off
-	define SAVE = 		13;	//item, (BOOL), on / off
-	define CREATEITEM = 	14;	//item, (BOOL), on / off
-	define CREATENPC = 	15;	//item, (BOOL), on / off
-	define PALETTE = 	16;	//item, (BOOL), on / off
-	define MONOCHROME = 	17;	//item, (BOOL), on / off
-	define BOMBS = 		18;	//item, (BOOL), on / off
-	define MBOMBS = 	19;	//item, (BOOL), on / off
-	define ARROWS = 	20;	//item, (BOOL), on / off
-	define MARROWS = 	21;	//item, (BOOL), on / off
-	define KEYS = 		22;	//item, (BOOL), on / off
-	define LKEYS = 		23;	//item, (BOOL), on / off
-	define RUPEES = 	24;	//item, (BOOL), on / off
-	define MRUPEES = 	25;	//item, (BOOL), on / off
-	define LMAP = 		26;	//level map, level id, true|false
-	define LBOSSKEY = 	27;	//level map, level id, true|false
-	define BIGHITBOX = 	28;	//level map, level id, true|false
-	define LINKDIAGONAL = 	29;	//level map, level id, true|false
-	define LTRIFORCE = 	30;	//level map, level id, true|false
-	define LCOMPASS = 	31;	//level map, level id, true|false
-	define RUNFFCSCRIPTID = 32;
-	define SETFFSCRIPT = 	33;
-	define SETFFDATA = 	34;
-	
-	define TINT = 		35;
-	define HUE = 		36;
-	define CLEARTINT = 	37;
-	
-	define FCSET =		38;
-	define FX =		39;
-	define FY =		40;
-	define FVX =		41;
-	define FVY =		42;
-	define FAX =		43;
-	define FAY =		44;
-	define FFLAGS =		45; //ffc flags
-	define FTHEIGHT =	46;
-	define FTWIDTH =	47;
-	define FEHEIGHT =	48;
-	define FEWIDTH =	49;
-	define FLINK =		50;
-	define FMISC =		51;
-	
-	define PLAYSOUND =	52;
-	define PLAYMIDI =	53;
-	define DMAPMIDI =	54;
-	
-	define SETLIFE =	55;
-	define SETMAGIC =	56;
-	define SETCOUNTER =	57;
-	
-	define SAVESEQUENCE =	58;
-	define RUNSEQUENCE =	59;
-	
-	define TRACE =		60;
-	
-	
-	
-	
-	
+	//Returns the number of args to grab from an instruction
 	int num_instruction_params(int instr)
 	{
 		switch(instr)
@@ -720,52 +712,94 @@ namespace script debugshell
 			default: 
 			{
 				
-				TraceError("Invalid instruction passed to stack",instr); 
+				printf("Invalid instruction %d passed to stack",instr); 
 				clearbuffer(); 
 				return 0;
 			}
 		}
 	}
 	
-	
-	
-	int match_instruction(int token)
+	//Match token substring to an instruction
+	int match_instruction(char32 token)
 	{
-		if ( log_actions )  {TraceNL(); TraceS("Input token into match_instruction is: "); TraceS(token); TraceNL();}
-		
-		if ( log_actions ) {TraceNL(); TraceErrorS("match_instruction() token is: ",token); TraceNL();}
-		if ( log_actions ) {TraceNL(); TraceError("Matching string with strcmp to 'w': ", strcmp(token,"w")); TraceNL();}
-		
-		/* ONE WAY TO DO THIS. I did this with individual characters, and switches, to minimise the checks down
-		to the absolute minimum. -Z
-		
-		You could add specific instructions this way, if you wish. 
-		
-		if ( !(strcmp(token,"w") ) ) TraceErrorS("Token in match_instruction() matched to WARP. Token: ", token);
-		if ( !(strcmp(token,"W") ) ) TraceErrorS("Token in match_instruction() matched to WARP. Token: ", token);
-		if ( !(strcmp(token,"p") ) ) TraceErrorS("Token in match_instruction() matched to POS. Token: ", token);
-		if ( !(strcmp(token,"P") ) ) TraceErrorS("Token in match_instruction() matched to POS. Token: ", token);
-		if ( !(strcmp(token,"rh") ) ) TraceErrorS("Token in match_instruction() matched to REFILLHP. Token: ", token);
-		if ( !(strcmp(token,"RH") ) ) TraceErrorS("Token in match_instruction() matched to REFILLHP. Token: ", token);
-		if ( !(strcmp(token,"Rh") ) ) TraceErrorS("Token in match_instruction() matched to REFILLHP. Token: ", token);
-		if ( !(strcmp(token,"rH") ) ) TraceErrorS("Token in match_instruction() matched to REFILLHP. Token: ", token);
-		if ( !(strcmp(token,"rH") ) ) TraceErrorS("Token in match_instruction() matched to REFILLHP. Token: ", token);
-		*/
-		
-		/* Putting BRACES here causes Invalid pointer errors?! PARSER BUG!!
-		it works just find without the braces!!
-		if ( !(strcmp(token,"RunSequence") ) ) 
-		{
-			TraceErrorS("Found token RunSequence", token); // return RUNSEQUENCE; }//TraceErrorS("Token in match_instruction() matched to POS. Token: ", token);
+		if ( log_actions )  
+		{ 
+			printf("Input token into match_instruction is: %s\n", token); 
+			printf("match_instruction() token is: %s\n", token); 
 		}
-		*/
-			//if ( !(strcmp(token,"RunSequence") ) ) { TraceError("Found token RunSequence", " "); return RUNSEQUENCE; }
-		//if ( !(strcmp(token,"SaveSequence") ) ) return SAVESEQUENCE;
 		
-		int sc;
-		if ( !(strcmp(token,"RunSequence") ) ) sc = RUNSEQUENCE;
-		if ( sc == RUNSEQUENCE ) { TraceError("Found token RunSequence", " "); return RUNSEQUENCE;}
+		int sc; //script command, not used at present.
 		
+		//check normal commands first
+		switch(token)
+		{
+			case "WARP": return WARP;
+			case "POS": return POS;
+			case "MOVEX": return MOVEX;
+			case "MOVEY": return MOVEY;
+			case "REFILLHP": return REFILLHP;
+			case "REFILLMP": return REFILLMP;
+			case "REFILLCTR": return REFILLCTR;
+			case "MAXHP": return MAXHP;
+			case "MAXMP": return MAXMP;
+			case "MAXCTR": return MAXCTR;
+			case "INVINCIBLE": return INVINCIBLE;
+			case "LINKITEM": return LINKITEM;
+			case "SAVE": return SAVE;
+			case "CREATEITEM": return CREATEITEM;
+			case "CREATENPC": return CREATENPC;
+			case "PALETTE": return PALETTE;
+			case "MONOCHROME": return MONOCHROME;
+			case "BOMBS": return BOMBS;
+			case "MBOMBS": return MBOMBS;
+			case "ARROWS": return ARROWS;
+			case "MARROWS": return MARROWS;
+			case "KEYS": return KEYS;
+			case "LKEYS": return LKEYS;
+			case "RUPEES": return RUPEES;
+			case "MRUPEES": return MRUPEES;
+			case "LMAP": return LMAP;
+			case "LBOSSKEY": return LBOSSKEY;
+			case "BIGHITBOX": return BIGHITBOX;
+			case "LINKDIAGONAL": return LINKDIAGONAL;
+			case "LTRIFORCE": return LTRIFORCE;
+			case "LCOMPASS": return LCOMPASS;
+			case "RUNFFCSCRIPTID": return RUNFFCSCRIPTID;
+			case "SETFFSCRIPT": return SETFFSCRIPT;
+			case "SETFFDATA": return SETFFDATA;
+			case "TINT": return TINT;
+			case "HUE": return HUE;
+			case "CLEARTINT": return CLEARTINT;
+			case "FCSET": return FCSET;
+			case "FX": return FX;
+			case "FY": return FY;
+			case "FVX": return FVX;
+			case "FVY": return FVY;
+			case "FAX": return FAX;
+			case "FAY": return FAY;
+			case "FFLAGS": return FFLAGS;
+			case "FTHEIGHT": return FTHEIGHT;
+			case "FTWIDTH": return FTWIDTH;
+			case "FEHEIGHT": return FEHEIGHT;
+			case "FEWIDTH": return FEWIDTH;
+			case "FLINK": return FLINK;
+			case "FMISC": return FMISC;
+			case "PLAYSOUND": return PLAYSOUND;
+			case "PLAYMIDI": return PLAYMIDI;
+			case "DMAPMIDI": return DMAPMIDI;
+			case "SETLIFE": return SETLIFE;
+			case "SETMAGIC": return SETMAGIC;
+			case "SETCOUNTER": return SETCOUNTER;
+			case "SAVESEQUENCE": return SAVESEQUENCE;
+			case "RUNSEQUENCE": 
+			{
+				TraceS("Found token RunSequence\n");
+				return RUNSEQUENCE;
+			}
+			case "TRACE": return TRACE;
+			
+		}
+		//do trace values
 		switch(token[0])
 		{
 			case '%':
@@ -785,7 +819,7 @@ namespace script debugshell
 						{
 							buf[qq-offset] = token[qq];
 						}
-						TraceErrorS("Log",buf);
+						printf("%s\n",buf);
 						//TraceS(buf);
 						return TRACE;
 					}
@@ -802,473 +836,58 @@ namespace script debugshell
 						} 
 						int tmp = atof(buf);
 						
-						TraceError("Log",tmp);
+						printf("%d\n",tmp);
 						
 						return TRACE;
 					}
-					default: TraceErrorS("match_instruction(TOKEN) could not evaluate the instruction",token); abort(); return 0;
+					default: printf("match_instruction(TOKEN) could not evaluate the instruction: %s\n",token); abort(); return 0;
 				}
 				break;
 			}
-			//A
-			case 'a':
-			case 'A':
-				return ARROWS;
-			//B
-			case 'b':
-			case 'B':
-			{
-				return BOMBS;
-				/*
-				switch(token[1])
-				{
-					case 'i':
-					case 'I':
-						return BIGHITBOX;
-					case 'o':
-					case 'O':
-						return BOMBS;
-					default: TraceErrorS("match_instruction(TOKEN) could not evaluate the instruction",token); abort(); return 0;
-				}
-				*/
-			}
-			case 'c':
-			case 'C':
-			{
-				switch(token[1])
-				{
-					case NULL:
-					case 'o':
-					case 'O':
-						return SETCOUNTER;
-					case 'l':
-					case 'L':
-						return CLEARTINT;
-					case 'r':
-					case 'R':
-					{
-						switch(token[2])
-						{
-							case 'i':
-							case 'I':
-							{
-								//TraceNL(); TraceS("instr() found token 'cri'"); TraceNL(); 
-								return CREATEITEM;
-							}
-							
-							case 'n':
-							case 'N':
-							{
-								//TraceNL(); TraceS("instr() found token 'cri'"); TraceNL(); 
-								return CREATENPC;
-							}
-				
-							default: TraceErrorS("match_instruction(TOKEN) could not evaluate the instruction",token); abort(); return 0;
-						}
-					}
-					default: TraceErrorS("match_instruction(TOKEN) could not evaluate the instruction",token); abort(); return 0;
-				}
-				break;
-			}
-			//D
-			case 'd':
-			case 'D':
-			{
-				switch(token[1])
-				{
-					case NULL:
-					case 'i':
-					case 'I':
-						return LINKDIAGONAL;
-					case 'm':
-					case 'M': //dmap stuff
-					{
-						switch(token[2])
-						{
-							
-							case NULL: 
-							case 'm':
-							case 'M':
-								return DMAPMIDI;
-							default: TraceErrorS("match_instruction(TOKEN) could not evaluate the instruction",token); abort(); return 0;
-				
-						}
-					}	
-					default: TraceErrorS("match_instruction(TOKEN) could not evaluate the instruction",token); abort(); return 0;
-				
-				}
-				break;
-			}
-			//E
-			//F
-			case 'f':
-			case 'F':
-			{
-				switch(token[1])
-				{
-					case 'a':
-					case 'A':
-					{
-						switch(token[2])
-						{
-							case 'x':
-							case 'X':
-								return FAX;
-							case 'Y':
-							case 'y':
-								return FAY;
-							default: TraceErrorS("match_instruction(TOKEN) could not evaluate the instruction",token); abort(); return 0;
-				
-						}
-						break;
-						
-					}
-					case 'c':
-					case 'C':
-						return FCSET;
-					case 'd':
-					case 'D':
-						return SETFFDATA;
-					case 'e':
-					case 'E':
-					{
-						switch(token[2])
-						{
-							case 'h':
-							case 'H':
-								return FEHEIGHT;
-							case 'w':
-							case 'W':
-								return FEWIDTH;
-							default: TraceErrorS("match_instruction(TOKEN) could not evaluate the instruction",token); abort(); return 0;
-						}
-						break;
-					}
-					case 'f':
-					case 'F':
-					{
-						switch(token[2])
-						{
-							case NULL:
-							case 'l':
-							case 'L':
-								return FFLAGS;
-							
-								
-							default: TraceErrorS("match_instruction(TOKEN) could not evaluate the instruction",token); abort(); return 0;
-						}
-						break;
-						
-					}
-					case 'l':
-					case 'L':
-						return FLINK;
-					case 'M':
-					case 'm':
-						return FMISC;
-					case 'S':
-					case 's':
-						return SETFFSCRIPT;
-					case 't':
-					case 'T':
-					{
-						switch(token[2])
-						{
-							case 'H':
-							case 'h':
-								return FTHEIGHT;
-							case 'w':
-							case 'W':
-								return FTWIDTH;
-							default: TraceErrorS("match_instruction(TOKEN) could not evaluate the instruction",token); abort(); return 0;
-						}
-						break;
-						
-					}
-					case 'v':
-					case 'V':
-					{
-						switch(token[2])
-						{
-							case 'x':
-							case 'X':
-								return FVX;
-							case 'y':
-							case 'Y':
-								return FVY;
-							default: TraceErrorS("match_instruction(TOKEN) could not evaluate the instruction",token); abort(); return 0;
-						}
-						break;
-						
-					}
-					case 'x':
-					case 'X':
-						return FX;
-					case 'y':
-					case 'Y':
-						return FY;
-					
-					
-					default: TraceErrorS("match_instruction(TOKEN) could not evaluate the instruction",token); abort(); return 0;
-				}
-				break;
-			}
-			//G
-			//H
-			case 'h':
-			case 'H':
-			{
-				switch(token[1])
-				{
-					case NULL: 
-						return SETLIFE;
-					case 'b':
-					case 'B':
-						return BIGHITBOX;
-					case 'u':
-					case 'U':
-						return HUE;
-					default: TraceErrorS("match_instruction(TOKEN) could not evaluate the instruction",token); abort(); return 0;
-				}
-			}
-			//I
-			case 'i':
-			case 'I':
-			{
-				switch(token[1])
-				{
-					case 'n':
-					case 'N':
-						return INVINCIBLE;
-					case 't':
-					case 'T':
-						return LINKITEM;
-					default: TraceErrorS("match_instruction(TOKEN) could not evaluate the instruction",token); abort(); return 0;
-				}
-				break;
-			}
-			//J
-			//K
-			case 'k':
-			case 'K':
-				return KEYS;
-			//L
-			case 'l':
-			case 'L':
-			{
-				switch(token[1])
-				{
-					case 'b':
-					case 'B':
-						return LBOSSKEY;
-					case 'c':
-					case 'C':
-						return LCOMPASS;
-					case 'K':
-					case 'k':
-						return LKEYS;
-					case 'M':
-					case 'm':
-						return LMAP;
-					case 't':
-					case 'T':
-						return LTRIFORCE;
-					default: TraceErrorS("match_instruction(TOKEN) could not evaluate the instruction",token); abort(); return 0;
-				}
-				
-			}
-			//M
-			case 'm':
-			case 'M':
-			{
-				switch(token[1])
-				{
-					case NULL:
-						return SETMAGIC;
-					case 'x':
-					case 'X':
-						//TraceNL(); TraceS("instr() found token 'mx'"); 
-						return MOVEX;
-					case 'y':
-					case 'Y':
-						//TraceNL(); TraceS("instr() found token 'my'"); 
-						return MOVEY;
-					case 'h':
-					case 'H':
-						return MAXHP;
-					case 'm':
-					case 'M':
-						return MAXMP;
-					case 'c':
-					case 'C':
-						return MAXCTR;
-					case 'o':
-					case 'O':
-						return MONOCHROME;
-					case 'b':
-					case 'B': 
-						return MBOMBS;
-					
-					case 'a':
-					case 'A':
-						return MARROWS;
-					case 'R':
-					case 'r':
-						return MRUPEES;
-					
-					default: TraceErrorS("match_instruction(TOKEN) could not evaluate the instruction",token); abort(); return 0;
-				}
-				break;
-			}
-			
-			//P
-			case 'p':
-			case 'P':
-			{
-				switch(token[1])
-				{
-					
-					case 'a':
-					case 'A':
-						//TraceNL(); TraceS("instr() found token 'p'"); TraceNL(); 
-						return PALETTE; 
-					
-					case 'l':
-					case 'L':
-					{
-						switch(token[2])
-						{
-							case 'm':
-							case 'M':
-								return PLAYMIDI;
-							case 's':
-							case 'S':
-								return PLAYSOUND;
-							
-							default: TraceErrorS("match_instruction(TOKEN) could not evaluate the instruction",token); abort(); return 0;
-						}
-					}
-					case 'o':
-					case 'O':
-						//TraceNL(); TraceS("instr() found token 'pos'"); TraceNL(); 
-						return POS; 
-					default: TraceErrorS("match_instruction(TOKEN) could not evaluate the instruction",token); abort(); return 0;
-				}
-				break;
-			}
-			//Q
-			//R
-			case 'r':
-			case 'R':
-			{
-				switch(token[1])
-				{
-					case NULL:
-						return RUPEES;
-					case 'h':
-					case 'H':
-						return REFILLHP;
-					case 'm':
-					case 'M':
-						return REFILLMP;
-					case 'c':
-					case 'C':
-						return REFILLCTR;
-					case 'U':
-					case 'u':
-					{
-						switch(token[2])
-						{
-							case NULL:
-								return RUPEES;
-							case 'n':
-							case 'N':
-								return RUNFFCSCRIPTID;
-							default: TraceErrorS("match_instruction(TOKEN) could not evaluate the instruction",token); abort(); return 0;
-						}
-					}
-					default: TraceErrorS("match_instruction(TOKEN) could not evaluate the instruction",token); abort(); return 0;
-				}
-				break;
-			}
-			//S
-			case 's':
-			case 'S':
-			{
-				switch(token[1])
-				{
-					case 'a':
-					case 'A':
-					case 'V':
-					case 'v':
-					{
-						//TraceNL(); TraceS("instr() found token 'save'"); 
-						return SAVE;
-					}
-					default: TraceErrorS("match_instruction(TOKEN) could not evaluate the instruction",token); abort(); return 0;
-				}
-				break;
-			}
-			//T
-			case 't':
-			case 'T':
-				return TINT;
-			//U
-			//V
-			//W
-			case 'w':
-			case 'W':
-				//TraceNL(); TraceS("instr() found token 'w'"); TraceNL(); 
-				return WARP;
-			
-			default: TraceErrorS("match_instruction(TOKEN) could not evaluate the instruction",token); abort(); return 0;
 		}
-		
-		//if ( strcmp(token,"w") == 0) { TraceNL(); TraceS("instr() found token 'w'"); return WARP; }
-		//else if ( strcmp(token,"p") == 0) { TraceNL(); TraceS("instr() found token 'p'"); return POS; }
-		//else if ( strcmp(token,"mx") == 0) { TraceNL(); TraceS("instr() found token 'mx'"); return MOVEX; }
-		//else if ( strcmp(token,"my") == 0) return MOVEY;
-		//else if ( strcmp(token,"rh") == 0) return REFILLHP;
-		//else if ( strcmp(token,"rm") == 0) return REFILLMP;
-		//else if ( strcmp(token,"rc") == 0) return REFILLCTR;
-		//else if ( strcmp(token,"mh") == 0) return MAXHP;
-		//else if ( strcmp(token,"mm") == 0) return MAXMP;
-		//else if ( strcmp(token,"mc") == 0) return MAXCTR;
-		//else if ( strcmp(token,"inv") == 0) return INVINCIBLE;
-		//else// if ( strcmp(token,"itm") == 0) return LINKITEM;
-		//else
-		//{
-		//	TraceErrorS("match_instruction(TOKEN) could not evaluate the instruction",token); 
-		//	return 0;
-		//}
+		//if we reach here, then we could not match the token
+		printf("match_instruction(TOKEN) could not evaluate the instruction: %s\n",token); abort(); return NONE;
 	}
+	
+	//Clears the stack
 	void clearstack()
 	{
 		for ( int q = 0; q <= stack[TOP]; ++q ) stack[q] = 0; 
 		SP = 0;
 		stack[TOP] = 0;
 	}
+	
+	//Enqueue instruction into a script, instead of instantly running it.
 	int enqueue()
 	{
-		if ( log_actions ) TraceErrorS("enqueue() is pushing a string.", " ");
+		if ( log_actions ) TraceS("enqueue() is pushing a string.\n");
 		int r = read(debug_buffer,true);
 		//clearbuffer();
 		++ENQUEUED;
-		if ( log_actions ) TraceError("Enqueued is: ", ENQUEUED);
-		if ( log_actions ) TraceStack();
-		if ( log_actions ) TraceError("SP is now: ",SP);
+		if ( log_actions ) 
+		{
+			printf("Enqueued is: %d", ENQUEUED);
+			TraceStack();
+			printf("SP is now: %d",SP);
+		}
 		return ENQUEUED;
 	}
+	
+	//Prints the full contents of the main stack.
 	void TraceStack()
 	{
 		for ( int q = stack[TOP]; q >= 0; --q )
-		TraceError("Stack register and value: ", q, stack[q]);
+		printf("Stack register [%d] had value: %d", q, stack[q]);
 	}
-	void TraceStack(int s)
+	
+	//Prints the full contents of a specified stack.
+	void TraceStack(int which_stack)
 	{
-		for ( int q = s[TOP]; q >= 0; --q )
-		TraceError("Stack register and value: ", q, s[q]);
+		for ( int q = which_stack[TOP]; q >= 0; --q )
+		printf("Stack (%d) register [%d] had value: %d", which_stack, q, which_stack[q]);
 	}
+	
+	//Aborts processing and resets out of the window.
 	void abort()
 	{
 		clearbuffer();
@@ -1276,11 +895,16 @@ namespace script debugshell
 		Link->PressStart = false;
 		Link->InputStart = false;
 	}
+	
+	//Clears the typing buffer.
 	void clearbuffer()
 	{
 		for ( int q = 0; q < BUFFER_LENGTH; ++q ) debug_buffer[q] = 0;
 	}
-	int read(int str, bool enqueued)
+	
+	//Interprets an instruction line, interprets the instruction token, and then reads
+	//the parameters from an instruction line and feeds them to the interpreter.
+	int read(char32 str, bool enqueued)
 	{
 		//debug
 		//if ( !enqueued ) {TraceNL(); TraceS("Starting read() with an initial buffer of: "); TraceS(str); TraceNL();}
@@ -1301,7 +925,7 @@ namespace script debugshell
 			//++input_string_pos; //skip the comma now. If there are no params, we'll be on NULL.
 		}
 		//debug
-		TraceNL(); TraceS("read() token: "); TraceS(token); TraceNL();
+		printf("read() token: %s\n", token); 
 		
 		//put the instruction onto the stack.
 		//Right now, we are only allowing one instruction at a time.
@@ -1316,7 +940,7 @@ namespace script debugshell
 			if ( str[input_string_pos] == NULL ) 
 			{
 				//no params.
-				TraceErrorS("Input string is missing params. Token was", token);
+				printf("Input string is missing params. Token was: %s\n", token);
 				return 0;
 			}
 		}
@@ -1357,50 +981,49 @@ namespace script debugshell
 			int tval; //value of the param
 			//first check the boolean types:
 			//TraceNL(); TraceS("The arg token is: "); TraceS(token); TraceNL();
-			if ( !isNumber(token[0]) )
+			
+			//if the argument is not a numeric literal:
+			unless ( isNumber(token[0]) )
 			{
-				switch(token[0])
+				switch(token)
 				{
-					
-					case '-': tval = atof(token); break;
-					case '.': tval = atof(token); break;
-					
-					case 't':
-					case 'T':
+					case "t":
+					case "true":
+					case "T":
+					case "TRUE":
 						tval = 1; break;
-					case 'f':
-					case 'F':
+					case "f":
+					case "false":
+					case "F":
+					case "FALSE":
 						tval = 0; break;
 					
-					case 'l':
-					case 'L':
+					case "lx":
+					case "LX":
+						if ( log_actions ) printf("tval set to Link->X: %d", Link->X);
+						tval = Link->X; break;
+					
+					case "ly":
+					case "LY": 
 					{
-						switch(token[1])
-						{
-							case 'x':
-							case 'X':
-							{
-								if ( log_actions ) TraceError("tval set to Link->X: ", Link->X);
-								tval = Link->X; break;
-							}
-							case 'y':
-							case 'Y': 
-							{
-								if ( log_actions ) TraceError("tval set to Link->Y: ", Link->Y);
-								tval = Link->Y; break;
-							}
-							default: TraceErrorS("Invalid token passed as an argument for instruction: ", token); tval = 0; break;
-						}
-						break;
+						if ( log_actions ) printf("tval set to Link->Y: %d", Link->Y);
+						tval = Link->Y; break;
 					}
 					
-					default: TraceErrorS("Invalid token passed as an argument for instruction: ", token); tval = 0; break;
-				}
-				//if ( strcmp(token,"true") ) tval = 1;
-				//else if ( strcmp(token,"T") ) tval = 1;
-				//else if ( strcmp(token,"false") ) tval = 0;
-				//else if ( strcmp(token,"F") ) tval = 0;
+					default:
+					{
+						//no chatacter token, but we need to check for negative numbers and decimal numbers such as .123
+						switch(token[0])
+						{
+							case '-': tval = atof(token); break;
+							case '.': tval = atof(token); break;
+							
+							//no matching token at all
+							default: printf("Invalid token passed as an argument for instruction: %s", token); tval = 0; break;
+						}
+					}
 				
+				}
 			}
 			else //literals
 			{
@@ -1434,14 +1057,15 @@ namespace script debugshell
 	//	++VP;
 	//}
 	
+	//Executes an interpreted instrucftion from the stack. 's' is the script for enqueued/saved scripts
 	void execute(int s)
 	{
 		if ( log_actions ) 
 		{
-			TraceNL(); TraceS("Stack Trace");
+			TraceNL(); TraceS("Stack Trace\n");
 			for ( int q = stack[TOP]; q >= 0; --q )
 			{
-				TraceNL(); Trace(stack[q]);
+				Trace(stack[q]);
 			}
 		}
 		
@@ -1472,131 +1096,109 @@ namespace script debugshell
 			
 			if ( log_actions ) 
 			{
-				TraceNL(); TraceS("execute believes that the present instruction is: "); Trace(instr); TraceNL();
-				TraceNL(); TraceS("args[0] is: "); Trace(args[0]); TraceNL();
-				TraceNL(); TraceS("args[1] is: "); Trace(args[1]); TraceNL();
+				printf("execute believes that the present instruction is: %d\n", instr); 
+				printf("args[0] is: (%d(, args[1] is: (%d)\n", args[0], args[1]);
 			}
 			switch(instr)
 			{
 				case NONE: 
-				TraceError("STACK INSTRUCTION IS INVALID: ", instr); 
-				Game->TypingMode = false;
-				clearbuffer();
-				break;
+					printf("STACK INSTRUCTION IS INVALID: %d", instr); 
+					Game->TypingMode = false;
+					clearbuffer();
+					break;
 				case WARP: 
 				{
 					Link->Warp(args[0],args[1]); 
-					if ( log_actions ) TraceError("Cheat System Warped Link to dmap,screen",args[0],args[1]);
+					if ( log_actions ) printf("Cheat System Warped Link to dmap (%d),screen (%d).\n",args[0],args[1]);
 					break;
 				}
 				case POS: 
 				{
 					Link->X = args[0];
 					Link->Y = args[1];
-					if ( log_actions ) TraceError("Cheat System repositioned Link to X,Y",args[0],args[1]);
+					if ( log_actions ) printf("Cheat System repositioned Link to X (%d),Y (%d)\n",args[0],args[1]);
 					break;
 				}
 				
 				case MOVEX:
 				{
 					Link->X += args[0];
-					if ( log_actions ) TraceError("Cheat system moved Link on his X axis by", args[0]);
+					if ( log_actions ) printf("Cheat system moved Link on his X axis by %d\n", args[0]);
 					break;
 				}
 				case MOVEY: 
 				{
 					Link->Y += args[0];
-					if ( log_actions ) TraceError("Cheat system moved Link on his Y axis by", args[0]);
+					if ( log_actions ) printf("Cheat system moved Link on his Y axis by %d\n", args[0]);
 					break;
 				}
 				case REFILLHP: 
 				{
 					Link->HP =  Link->MaxHP;
-					if ( log_actions ) TraceError("Cheat system refilled Link's HP to", Link->MaxHP);
+					if ( log_actions ) printf("Cheat system refilled Link's HP to %d\n", Link->MaxHP);
 					break; 
 				}
 				case REFILLMP: 
 				{
 					Link->MP =  Link->MaxMP;
-					if ( log_actions ) TraceError("Cheat system refilled Link's MP to", Link->MaxHP);
+					if ( log_actions ) printf("Cheat system refilled Link's MP to %d\n", Link->MaxHP);
 					break; 
 				}
 				case REFILLCTR: 
 				{
 					Game->Counter[args[0]] =  Game->MCounter[args[0]];
-					if ( log_actions ) TraceError("Cheat system refilled Counter", args[0]);
+					if ( log_actions ) printf("Cheat system refilled Counter %d\n", args[0]);
 					break; 
 				}
 				case MAXHP:
 				{
 					Game->MCounter[CR_LIFE] = args[0];
-					if ( log_actions ) TraceError("Cheat system set Link's Max HP to",args[0]);
+					if ( log_actions ) printf("Cheat system set Link's Max HP to %d\n",args[0]);
 					break; 
 				}
 				case MAXMP:
 				{
 					Game->MCounter[CR_MAGIC] = args[0];
-					if ( log_actions ) TraceError("Cheat system set Link's Max MP to",args[0]);
+					if ( log_actions ) printf("Cheat system set Link's Max MP to %d\n",args[0]);
 					break; 
 				}
 				case MAXCTR:
 				{
 					Game->Counter[args[0]] = args[1];
-					if ( log_actions ) TraceError("Cheat system refilled Counter (id, amount)",args[0],args[1]);
+					if ( log_actions ) printf("Cheat system refilled Counter (id: %d, amount: %d)\n",args[0],args[1]);
 					break; 
 				}
 				
 				case INVINCIBLE:
 				{
-					if ( args[0] )
-					{
-						Link->Invisible = true;
-						if ( log_actions ) TraceErrorS("Cheat system set Link's Invisibility state to ","true");
-						break; 
-					}
-					else
-					{
-						Link->Invisible = false;
-						if ( log_actions ) TraceErrorS("Cheat system set Link's Invisibility state to ","false");
-						break; 
-						
-					}
-					
+					Link->Invisible = (args[0]) ? true : false;
+					if ( log_actions ) printf("Cheat system set Link's Invisibility state to (%s)\n", ((args[0]) ? "true" : "false"));
+					break;
 				}
 				case LINKITEM: 
 				{
 					itemdata id = Game->LoadItemData(args[0]);
 					if ( id->Keep )
 					{
-						if ( args[1] )
-						{
-							
-							Link->Item[args[0]] = true;
-							if ( log_actions ) TraceErrorS("Cheat system set Link's Inventory Item to (item, state)","true");
-							break; 
-						}
-						else
-						{
-							Link->Item[args[0]] = false;
-							if ( log_actions ) TraceErrorS("Cheat system set Link's Inventory Item to (item, state)","false");
-							break; 
-							
-						}
+						Link->Item[args[0]] = (args[1]) ? true : false;
+						if ( log_actions ) printf("Cheat system set Link's Inventory Item [%d] to state (%s)\n", args[0],((args[1]) ? "true" : "false"));
+						break; 
 					}
 					else break;
 				}
 				case SAVE:
 				{
-					TraceNL(); TraceS("Cheat system is saving the game."); 
+					TraceS("Cheat system is saving the game.\n"); 
 					clearbuffer();
 					Game->Save();
 					break;
 				}
 				case CREATEITEM:
 				{
-					if ( log_actions ) TraceError("Cheat system is creating item ID: ", args[0]);
-					if ( log_actions ) TraceError("Cheat system is creating item at X Position: ", args[1]);
-					if ( log_actions ) TraceError("Cheat system is creating item at Y Position: ", args[2]);
+					if ( log_actions ) 
+					{
+						printf("Cheat system is creating item ID: %d, at x (%d), y (%d)\n", args[0], args[1], args[2]);
+					}
 					item cci = Screen->CreateItem(args[0]);
 					cci->X = args[1];
 					cci->Y = args[2];
@@ -1604,9 +1206,10 @@ namespace script debugshell
 				}
 				case CREATENPC:
 				{
-					if ( log_actions ) TraceError("Cheat system is creating npc ID: ", args[0]);
-					if ( log_actions ) TraceError("Cheat system is creating npc at X Position: ", args[1]);
-					if ( log_actions ) TraceError("Cheat system is creating npc at Y Position: ", args[2]);
+					if ( log_actions ) 
+					{
+						printf("Cheat system is creating npc ID: %d, at x (%d), y (%d)\n", args[0], args[1], args[2]);
+					}
 					npc ccn = Screen->CreateNPC(args[0]);
 					ccn->X = args[1];
 					ccn->Y = args[2];
@@ -1614,11 +1217,7 @@ namespace script debugshell
 				}
 				case PALETTE:
 				{
-					if ( args[0] < 0 )
-					{
-						Game->DMapPalette[Game->GetCurDMap()] = args[1];
-					}
-					else Game->DMapPalette[args[0]] = args[1];
+					Game->DMapPalette[ (( args[0] < 0 ) ? Game->GetCurDMap() : args[0]) ] = args[1];
 					break;
 				}
 				case MONOCHROME:
@@ -1634,55 +1233,37 @@ namespace script debugshell
 				case MRUPEES: Game->MCounter[CR_RUPEES] = args[0]; break;
 				
 				case LKEYS: Game->LKeys[args[0]] = args[1]; break;
-				case LINKDIAGONAL: Link->Diagonal = Cond(args[0],true,false); break;
-				case BIGHITBOX: Link->BigHitbox = Cond(args[0],true,false); break;
+				case LINKDIAGONAL: Link->Diagonal = (args[0] ? true : false); break;
+				case BIGHITBOX: Link->BigHitbox = (args[0] ? true : false); break;
 				
 				case LMAP: 
 				{
-					if ( args[1] ) //true
-					{	
-						Game->LItems[args[0]] |= LI_MAP;
-					}
-					else Game->LItems[args[0]] &= ~LI_MAP;
+					( args[1] ) ? (Game->LItems[args[0]] |= LI_MAP) : (Game->LItems[args[0]] ~=LI_MAP);
 					break;
 				}
 				case LBOSSKEY: 
 				{
-					if ( args[1] ) //true
-					{	
-						Game->LItems[args[0]] |= LI_BOSSKEY;
-					}
-					else Game->LItems[args[0]] &= ~LI_BOSSKEY;
+					( args[1] ) ? (Game->LItems[args[0]] |= LI_BOSSKEY) : (Game->LItems[args[0]] ~=LI_BOSSKEY);
 					break;
 				}
 				case LCOMPASS: 
 				{
-					if ( args[1] ) //true
-					{	
-						Game->LItems[args[0]] |= LI_COMPASS;
-					}
-					else Game->LItems[args[0]] &= ~LI_COMPASS;
+					( args[1] ) ? (Game->LItems[args[0]] |= LI_COMPASS) : (Game->LItems[args[0]] ~=LI_COMPASS);
 					break;
 				}
 				case LTRIFORCE: 
 				{
-					if ( args[1] ) //true
-					{	
-						Game->LItems[args[0]] |= LI_TRIFORCE;
-					}
-					else Game->LItems[args[0]] &= ~LI_TRIFORCE;
+					( args[1] ) ? (Game->LItems[args[0]] |= LI_TRIFORCE) : (Game->LItems[args[0]] ~=LI_TRIFORCE);
 					break;
 				}
 				case SETFFDATA: 
 				{
-					ffc f = Screen->LoadFFC(args[0]);
-					f->Data = args[1];
+					Screen->LoadFFC(args[0])->Data = args[1];
 					break;
 				}
 				case SETFFSCRIPT: 
 				{
-					ffc f = Screen->LoadFFC(args[0]);
-					f->Script = args[1];
+					Screen->LoadFFC(args[0])->Script = args[1];
 					break;
 				}
 				case RUNFFCSCRIPTID: 
@@ -1699,12 +1280,12 @@ namespace script debugshell
 							break;
 						}
 					}
-					if ( !running ) TraceError("Cheat system could not find a free ffc for command RUN. Try FS,id,scriptid instead.",NULL);
+					if ( !running ) TraceS("Cheat system could not find a free ffc for command RUN.\n");
 					break;
 				}
 				case CLEARTINT: 
 				{
-					if ( log_actions ) TraceError("Cheat shell is clearing all Tint().",NULL);
+					if ( log_actions ) TraceS("Cheat shell is clearing all Tint()\n.");
 					Graphics->ClearTint();
 					break;
 				}
@@ -1712,10 +1293,7 @@ namespace script debugshell
 				{
 					if ( log_actions ) 
 					{
-						TraceError("Cheat shell is setting Tint().",NULL);
-						TraceError("Tint(red) is: ",args[0]);
-						TraceError("Tint(green) is: ",args[1]);
-						TraceError("Tint(blue) is: ",args[2]);
+						printf("Cheat shell is setting Tint(): R[%d], G[%d], B[%d].\n",args[0],args[1],args[2]);
 					}
 					
 					Graphics->Tint(args[0],args[1],args[2]);
@@ -1725,99 +1303,80 @@ namespace script debugshell
 				{
 					if ( log_actions ) 
 					{
-						TraceError("Cheat shell is setting Hue().",NULL);
-						TraceError("Hue(red) is: ",args[0]);
-						TraceError("Hue(green) is: ",args[1]);
-						TraceError("Hue(blue) is: ",args[2]);
-						if ( args[3] ) TraceErrorS("Hue(distribution) is: ","true");
-						else TraceErrorS("Hue(distribution) is: ","false");
+						printf("Cheat shell is setting Hue(): R[%d], G[%d], B[%d].\n",args[0],args[1],args[2]);
+						printf("Hue(distribution) is: %s\n", ( ( args[3] ) ? "true" : "false" ));
 					}
-					
-					Graphics->MonochromeHue(args[0],args[1],args[2],Cond(args[3],true,false));
+					Graphics->MonochromeHue(args[0],args[1],args[2],(args[3] ? true : false));
 					break;
 				}
 				case FCSET: 
 				{
-					ffc f = Screen->LoadFFC(args[0]);
-					f->CSet = args[1];
+					Screen->LoadFFC(args[0])->CSet = args[1];
 					break;
 				}
 				case FX: 
 				{
-					ffc f = Screen->LoadFFC(args[0]);
-					f->X = args[1];
+					Screen->LoadFFC(args[0])->X = args[1];
 					break;
 				}	
 				case FY: 
 				{
-					ffc f = Screen->LoadFFC(args[0]);
-					f->Y = args[1];
+					Screen->LoadFFC(args[0])->Y = args[1];
 					break;
 				}
 				case FVX: 
 				{
-					ffc f = Screen->LoadFFC(args[0]);
-					f->Vx = args[1];
+					Screen->LoadFFC(args[0])->Vx = args[1];
 					break;
 				}	
 				case FVY: 
 				{
-					ffc f = Screen->LoadFFC(args[0]);
-					f->Vy = args[1];
+					Screen->LoadFFC(args[0])->Vy = args[1];
 					break;
 				}	
 				case FAX: 
 				{
-					ffc f = Screen->LoadFFC(args[0]);
-					f->Ax = args[1];
+					Screen->LoadFFC(args[0])->Ax = args[1];
 					break;
 				}	
 				case FAY: 
 				{
-					ffc f = Screen->LoadFFC(args[0]);
-					f->Ay = args[1];
+					Screen->LoadFFC(args[0])->Ay = args[1];
 					break;
 				}	
 				case FFLAGS: 
 				{
-					ffc f = Screen->LoadFFC(args[0]);
-					f->Flags[args[1]] = (args[2]);
+					Screen->LoadFFC(args[0])->Flags[args[1]] = (args[2]);
 					break;
 				}	
 				case FTHEIGHT: 
 				{
-					ffc f = Screen->LoadFFC(args[0]);
-					f->TileHeight = args[1];
+					Screen->LoadFFC(args[0])->TileHeight = args[1];
 					break;
 				}	
 				case FTWIDTH: 
 				{
-					ffc f = Screen->LoadFFC(args[0]);
-					f->TileWidth = args[1];
+					Screen->LoadFFC(args[0])->TileWidth = args[1];
 					break;
 				}	
 				case FEHEIGHT: 
 				{
-					ffc f = Screen->LoadFFC(args[0]);
-					f->EffectHeight = args[1];
+					Screen->LoadFFC(args[0])->EffectHeight = args[1];
 					break;
 				}	
 				case FEWIDTH: 
 				{
-					ffc f = Screen->LoadFFC(args[0]);
-					f->EffectWidth = args[1];
+					Screen->LoadFFC(args[0])->EffectWidth = args[1];
 					break;
 				}	
 				case FLINK: 
 				{
-					ffc f = Screen->LoadFFC(args[0]);
-					f->Link = args[1];
+					Screen->LoadFFC(args[0])->Link = args[1];
 					break;
 				}	
 				case FMISC: 
 				{
-					ffc f = Screen->LoadFFC(args[0]);
-					f->Misc[args[1]] = args[2];
+					Screen->LoadFFC(args[0])->Misc[args[1]] = args[2];
 					break;
 				}	
 				
@@ -1825,18 +1384,9 @@ namespace script debugshell
 				case PLAYMIDI: Game->PlayMIDI(args[0]); break;
 				case DMAPMIDI: 
 				{
-					if ( args[0] < 0 ) 
-					{ 
-						if ( log_actions ) TraceError("Cheat system is setting the DMap MIDI for the current DMap to: ",args[1]); 
-						Game->DMapMIDI[Game->GetCurDMap()] = args[1]; 
-					}
 					
-					else
-					{ 
-						if ( log_actions ) TraceError("Cheat system is setting the DMap MIDI for the DMap: ",args[0]); 
-						if ( log_actions ) TraceError("...to MIDI ID: ",args[1]); 
-						Game->DMapMIDI[args[0]] = args[1];
-					}
+					Game->DMapMIDI[ ( (args[0] < 0) ? (Game->GetCurDMap()) : (args[0]) ) ] = args[1];
+					if ( log_actions ) printf("Cheat system is setting the DMap MIDI for the DMap: [%d] to MIDI ID (%d)\n",( (args[0] < 0) ? (Game->GetCurDMap()) : (args[0]) ),args[1]); 
 					break;
 				}
 				
@@ -1844,9 +1394,8 @@ namespace script debugshell
 				case SETMAGIC: Game->Counter[CR_MAGIC] = args[0]; break;
 				case SETCOUNTER: Game->Counter[args[0]] = args[1]; break;
 					
-				
-				case RUNSEQUENCE: { TraceError("Running Saved Sequence", args[0]); runsequence(args[0]); break; }
-				case SAVESEQUENCE: TraceError("Saving Sequence", savesequence(args[0])); break;
+				case RUNSEQUENCE:  printf("Running Saved Sequence:%d\n", args[0]); runsequence(args[0]); break;
+				case SAVESEQUENCE: printf("Saving Sequence %d\n", savesequence(args[0])); break;
 				
 				case TRACE: break; //It's handled in match_instruction()
 				
@@ -1873,24 +1422,17 @@ namespace script debugshell
 		
 		
 	}
-		
-	void run()
-	{
-	
-		
-		
-	}
 }
 
 global script test
 {
 	void run()
 	{
-		debugshell.SP = 0;
-		debugshell.clearbuffer();
+		debugshell::SP = 0;
+		debugshell::clearbuffer();
 		while(1)
 		{
-			debugshell.process();
+			debugshell::process();
 			Waitdraw(); 
 			Waitframe();
 		}
