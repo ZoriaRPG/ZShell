@@ -1,113 +1,121 @@
 /////////////////////////////////
 /// Debug Shell for ZC Quests ///
-/// Alpha Version 2.1.3       ///
+/// Alpha Version 2.1.4       ///
 /// 5th July, 2020            ///
 /// By: ZoriaRPG              ///
 /// Requires: 2.55 Alpha 74+  ///
 /////////////////////////////////
-//
-// v1.2   : Finished working code. now it all functions as I intend.
-// v1.2.1 : Added a code comment block with examples on how to add more instructions to match_instruction(). 
-// v1.2.1 : Added a sanity check to setting Link->Item[]. It now only works on inventory items. 
-// v1.3.0 : Added the SAVE instruction.
-// v1.4.0 : Added CREATEITEM ( cri,id,x,y )
-// v1.4.0 : Added CREATENPC ( crn,id,x,y )
-// v1.4.0 : Fixed bug where buffer persists through saves.
-// v1.5.0 : Added LX and LY as literal args for Link's X and Y positions. 
-// v1.6.0 : Added LX and LY tracing.
-// v1.6.0 : Added PALETTE as pal,n1,n2 -- POS now requires more than 'p' -- to change DMap Palette. -1 for current DMap.
-// v1.6.0 :       This sets Game->DmapPalette[n1] = n2
-// v1.6.0 : Added MONOCHROME as mon,n to set Graphics->Monochrome(n1)
-// v1.6.1 : Added break instructiosn to fix invalid rval and other invalid returns in switch statements. 
-// v1.6.2 : Added clear instructions to case for NONE in switch(instr).
-// v1.7.0 : Added LTRIFORCE to set if Link has the triforce for a given level as 'lt,id,true|false'
-// v1.7.0 : Added LCOMPASS to set if Link has the compass for a given level as 'lc,id,true|false'
-// v1.7.0 : Added LMAP to set if Link has the map for a given level as 'lm,id,true|false'
-// v1.7.0 : Added LBOSSKEY to set if Link has the boss key for a given level as 'lb,id,true|false'
-// v1.7.0 : Added LKEYS to set the current number of LEVEL KEYS for a given level ID as 'lk,levelid,number'
-// v1.7.0 : Added BOMBS to set the current number of bombs as 'b,number'
-// v1.7.0 : Added MBOMBS to set the current number of max bombs as 'b,number'
-// v1.7.0 : Added ARROWS to set the current number of arrows as 'a,number'
-// v1.7.0 : Added MARROWS to set the current number of max arrows as 'a,number'
-// v1.7.0 : Added RUPEES to set the current number of rupees as 'r,number'
-// v1.7.0 : Added MRUPEES to set the current number of max rupees as 'r,number'
-// v1.7.0 : Added KEYS to set the current number of keys as 'k,number'
-// v1.7.0 : Added BIGHITBOX to set the if Link's hitbox is large (full tile collision), or small, as 'h,t|f'
-// v1.7.0 : Added DIAGONALMOVE to set the if Link may move diagonally, as 'd,t|f'
-// v1.7.1 : orrected a bug where RUPEES was using Game->Counter[RUPEES} insead of CR_RUPEES.
-// v1.7.1 : Added a NULL case for token[1] of command 'r', so that 'r' without any other legal char as the next token is RUPEES.
-// v1.8.0 : Added FSCRIPT as 'fs,ffc_id,script_id'
-// v1.8.0 : Added SETFFCDATA as 'fs,ffc_id,combo_id'
-// v1.8.0 : Added RUNFFCSCRIPTID as 'run,script_id'
-// v1.8.0 : Fixed missing break statements in execute(stack) switch(instr). 
-// v1.9.0 : Added HUE as 'hu,r,g,b,t|f'
-// v1.9.0 : Added TINT as 't,r,g,b'
-// v1.9.0 : Added CLEARTINT as 'cl'
-/* v1.10.0 : 
+
+#include "std.zh"
+
+/* Version Changes, v1.x.x
+ v1.2   : Finished working code. now it all functions as I intend.
+ v1.2.1 : Added a code comment block with examples on how to add more instructions to match_instruction(). 
+ v1.2.1 : Added a sanity check to setting Link->Item[]. It now only works on inventory items. 
+ v1.3.0 : Added the SAVE instruction.
+ v1.4.0 : Added CREATEITEM ( cri,id,x,y )
+ v1.4.0 : Added CREATENPC ( crn,id,x,y )
+ v1.4.0 : Fixed bug where buffer persists through saves.
+ v1.5.0 : Added LX and LY as literal args for Link's X and Y positions. 
+ v1.6.0 : Added LX and LY tracing.
+ v1.6.0 : Added PALETTE as pal,n1,n2 -- POS now requires more than 'p' -- to change DMap Palette. -1 for current DMap.
+ v1.6.0 :       This sets Game->DmapPalette[n1] = n2
+ v1.6.0 : Added MONOCHROME as mon,n to set Graphics->Monochrome(n1)
+ v1.6.1 : Added break instructiosn to fix invalid rval and other invalid returns in switch statements. 
+ v1.6.2 : Added clear instructions to case for NONE in switch(instr).
+ v1.7.0 : Added LTRIFORCE to set if Link has the triforce for a given level as 'lt,id,true|false'
+ v1.7.0 : Added LCOMPASS to set if Link has the compass for a given level as 'lc,id,true|false'
+ v1.7.0 : Added LMAP to set if Link has the map for a given level as 'lm,id,true|false'
+ v1.7.0 : Added LBOSSKEY to set if Link has the boss key for a given level as 'lb,id,true|false'
+ v1.7.0 : Added LKEYS to set the current number of LEVEL KEYS for a given level ID as 'lk,levelid,number'
+ v1.7.0 : Added BOMBS to set the current number of bombs as 'b,number'
+ v1.7.0 : Added MBOMBS to set the current number of max bombs as 'b,number'
+ v1.7.0 : Added ARROWS to set the current number of arrows as 'a,number'
+ v1.7.0 : Added MARROWS to set the current number of max arrows as 'a,number'
+ v1.7.0 : Added RUPEES to set the current number of rupees as 'r,number'
+ v1.7.0 : Added MRUPEES to set the current number of max rupees as 'r,number'
+ v1.7.0 : Added KEYS to set the current number of keys as 'k,number'
+ v1.7.0 : Added BIGHITBOX to set the if Link's hitbox is large (full tile collision), or small, as 'h,t|f'
+ v1.7.0 : Added DIAGONALMOVE to set the if Link may move diagonally, as 'd,t|f'
+ v1.7.1 : orrected a bug where RUPEES was using Game->Counter[RUPEES} insead of CR_RUPEES.
+ v1.7.1 : Added a NULL case for token[1] of command 'r', so that 'r' without any other legal char as the next token is RUPEES.
+ v1.8.0 : Added FSCRIPT as 'fs,ffc_id,script_id'
+ v1.8.0 : Added SETFFCDATA as 'fs,ffc_id,combo_id'
+ v1.8.0 : Added RUNFFCSCRIPTID as 'run,script_id'
+ v1.8.0 : Fixed missing break statements in execute(stack) switch(instr). 
+ v1.9.0 : Added HUE as 'hu,r,g,b,t|f'
+ v1.9.0 : Added TINT as 't,r,g,b'
+ v1.9.0 : Added CLEARTINT as 'cl'
+ v1.10.0 : 
 	Added all FFC vars:
 	fc FCSET; fx FX; fy FY; fvx FVX; fvy FVY; fax FAX ; fay FAY; ffl FFLAGS; fth FTHEIGHT; ftw FTWIDTH ; feh FEHEIGHT ; few FEWIDTH
 	fl FLINK; fm FMISC
 	Added PLAYSOUND as 'pls,sound_id'
 	Added PLAYMIDI as 'plm,midi_id'
 	Added DMAPMIDI as 'dmm,dmap_id,midi_id'
-*/
-// v1.10.1 : Added KEY_STOP (period) to the list of legal keys, to permit floating point values.
-// v1.10.1 : Fixed a bug where instructions missing params would not abort, and clear Start presses on abort().
-/* v1.11.0 : 
+
+ v1.10.1 : Added KEY_STOP (period) to the list of legal keys, to permit floating point values.
+ v1.10.1 : Fixed a bug where instructions missing params would not abort, and clear Start presses on abort().
+ v1.11.0 : 
 	The key used to open the shell is now a config option, with a base setting of F7.
 	Added an instruction QUEUE. You can now store up to 20 instructions. 
 	Press the DOWN ARROW KEY to store an instruction.
 	Press the ENTER key on an empty line to process all stored instructions.
-*/
-/* v1.11.1 : 
+
+ v1.11.1 : 
 	Fixed some issues with the number of ENQUEUED instructions being offset based on whether the user tried
 	to press the ENTER key on an empty line, or on a line with an instruction.
-*/
-/* v1.11.2 : Further patches to enqueued counts and behaviour.
+
+ v1.11.2 : Further patches to enqueued counts and behaviour.
 	Both of these now work properly, without any error codes.
 	I converted 'bool type()' into 'int type()' and now I return three possible conditions:
 		NONE: The user escaped out of the shell, or there were no instructions to process on pressing ENTER.
 		ENQUEUE: There are instructions in the queue.
 		RAW : This is when there is only one instruction, and no prior instructions entered,
 			and the user presses ENTER.
+
+
+ v1.12.0 : Added 'h,value' for SETLIFE.
+ v1.12.0 : Added 'm,value' for SETMAGIC.
+ v1.12.0 : Added 'co,counter_id,value' for SETCOUNTER.
+ v1.12.0 : Changed BIGHITBOX from 'h,t|f' to 'hb,t|f'.
+
+ v1.13.0 : Begin adding SEQUENCES to save a sequence of instructions. Added ten sequence slots.
+ v1.13.0 : To save a sequence, hold CONTROL and press a main row number from 1 through 0.
+ v1.13.0 : That number will be the SEQUENCE SLOT that you are using. Sequences can be saved!
+ v1.13.0 : To run a sequence, open the shell and type RunSequence,id : This command is CaSe-SeNsItIvE!
+ v1.13.1 : WTF? I found a parser bug. Scan the file for 'parser' to read more.
+ v1.13.2 : Created a temporary work-around for the parser bug and fixed the save/read SEQUENCE functions.
+ v1.13.2 : Sequences now seem to work. 
+ v1.14.0 : Added TRACE as an instruction to print to log. This uses the format of:
+ v1.14.0 : %s:string -- traces 'string' to the log.
+ v1.14.0 : %d:value -- traces value to the log.
+ v1.14.1 : Patched error in the offset of TRACE copying into temp buffers.
+ v1.14.1 : Increased size of MAX_TOKEN_LENGTH from 16 to 100, to allow for strings. 
+ v1.14.1 : Fixed call to atof() in TRACE for token %d
+ v1.14.1 : Removed extraneous spaces and colons in strings inside calls to TrqaceError*()
+ v1.14.2 : TRACE now eats all leading spaces and colons, instead of using a hardcoded offset.
+ v1.14.3 : Moved a number of traces into 'if ( log_actions ) ' statements, and disabled others. 
+ v1.14.4 : Fixed a bug where holding down a shift key would only modify the very next character. 
 */
 
-// v1.12.0 : Added 'h,value' for SETLIFE.
-// v1.12.0 : Added 'm,value' for SETMAGIC.
-// v1.12.0 : Added 'co,counter_id,value' for SETCOUNTER.
-// v1.12.0 : Changed BIGHITBOX from 'h,t|f' to 'hb,t|f'.
 
-// v1.13.0 : Begin adding SEQUENCES to save a sequence of instructions. Added ten sequence slots.
-// v1.13.0 : To save a sequence, hold CONTROL and press a main row number from 1 through 0.
-// v1.13.0 : That number will be the SEQUENCE SLOT that you are using. Sequences can be saved!
-// v1.13.0 : To run a sequence, open the shell and type RunSequence,id : This command is CaSe-SeNsItIvE!
-// v1.13.1 : WTF? I found a parser bug. Scan the file for 'parser' to read more.
-// v1.13.2 : Created a temporary work-around for the parser bug and fixed the save/read SEQUENCE functions.
-// v1.13.2 : Sequences now seem to work. 
-// v1.14.0 : Added TRACE as an instruction to print to log. This uses the format of:
-// v1.14.0 : %s:string -- traces 'string' to the log.
-// v1.14.0 : %d:value -- traces value to the log.
-// v1.14.1 : Patched error in the offset of TRACE copying into temp buffers.
-// v1.14.1 : Increased size of MAX_TOKEN_LENGTH from 16 to 100, to allow for strings. 
-// v1.14.1 : Fixed call to atof() in TRACE for token %d
-// v1.14.1 : Removed extraneous spaces and colons in strings inside calls to TrqaceError*()
-// v1.14.2 : TRACE now eats all leading spaces and colons, instead of using a hardcoded offset.
-// v1.14.3 : Moved a number of traces into 'if ( log_actions ) ' statements, and disabled others. 
-// v1.14.4 : Fixed a bug where holding down a shift key would only modify the very next character. 
-// v2.0.0  : Rewritten for 2.55. Now uses switch-case on strings, an other new parser features.
-//         : Optimised; converted custom logging to internal trace and printf.
-//         : The instruction set is no longer shorthand, but can be easily edited and expanded.
-// v2.1.0  : Renamed a few commands, and added better documentation.
-// v2.1.1  : Fixed an infinite loop hang when using backspace.
-//         : Prevent the player from moving when enqueuing commands by pressing the 'down' key.
-// v2.1.2  : Enabled option STRING_SWITCH_CASE_INSENSITIVE in match_instruction().
-// v2.1.3  : Trace stacks on runsequence(), and minor fixes to TraceStack().
+/* Version Changes, v2.x.x
+
+ v2.0.0  : Rewritten for 2.55. Now uses switch-case on strings, an other new parser features.
+         : Optimised; converted custom logging to internal trace and printf.
+         : The instruction set is no longer shorthand, but can be easily edited and expanded.
+ v2.1.0  : Renamed a few commands, and added better documentation.
+ v2.1.1  : Fixed an infinite loop hang when using backspace.
+         : Prevent the player from moving when enqueuing commands by pressing the 'down' key.
+ v2.1.2  : Enabled option STRING_SWITCH_CASE_INSENSITIVE in match_instruction().
+ v2.1.3  : Trace stacks on runsequence(), and minor fixes to TraceStack().
+ v2.1.4  : Added the ability to print disassembly from a given stack with PRSTACK,id
+         : Renamed namespace debugshell, to zshell. 
+*/
 
 
-
-#include "std.zh"
-
-/*
+/* Instruction Set
 Instructions, 		Args			Description
 WARP: 			dmap,screen		Warp to a specific dmap and screen.
 POS			x,y			Reposition player on the screen.
@@ -175,9 +183,11 @@ DMAPMIDI		dmap_id, midi_id	Set the MIDI for a specific DMap to a desired ID.
 %D:			*number			Traces the number after :
 %S:			*string			Traces all text after :
 
+PRSTACK			stackid			Prints the disassembly of a given stack; 0 to 9 for a sequence, -1 for current.
+
 */
 
-namespace debugshell
+namespace zshell
 {
 	typedef const int CFG;
 	
@@ -550,6 +560,7 @@ namespace debugshell
 		RUNSEQUENCE,
 		
 		TRACE,
+		PRSTACK,
 		INSTRUCTIONSEND
 	};
 	
@@ -629,6 +640,7 @@ namespace debugshell
 			case SAVESEQUENCE: return 1;
 			case RUNSEQUENCE: return 1;
 			case TRACE: return 0;
+			case PRSTACK: return 1;
 	
 			default: 
 			{
@@ -719,6 +731,7 @@ namespace debugshell
 				return RUNSEQUENCE;
 			}
 			case "TRACE": return TRACE;
+			case "PRSTACK": return PRSTACK;
 			
 		}
 		//do trace values
@@ -799,16 +812,15 @@ namespace debugshell
 	void TraceStack()
 	{
 		for ( int q = stack[TOP]; q >= 0; --q )
-		printf("Stack register [%d] had value: %d"\n, q, stack[q]);
+		printf("Stack register [%d] had value: %d\n", q, stack[q]);
 	}
 	
 	//Prints the full contents of a specified stack.
 	void TraceStack(int which_stack)
 	{
-		for ( int q = which_stack[TOP]; q >= 0; --q )
 		printf("Stack (%d)\n",which_stack);
-
-		printf("register [%d]: %d\n", , q, which_stack[q]);
+		for ( int q = which_stack[TOP]; q >= 0; --q )
+			printf("register [%d]: %d\n",q, which_stack[q]);
 	}
 	
 	//Aborts processing and resets out of the window.
@@ -1323,10 +1335,12 @@ namespace debugshell
 				
 				case TRACE: break; //It's handled in match_instruction()
 				
+				case PRSTACK: print_dissassembly(args[0]); break;
+				
 				default: 
 				{
 					
-					TraceError("Invalid instruction passed to stack",instr); 
+					printf("Invalid instruction (%d) passed to stack.\n",instr); 
 					break;
 				}
 				
@@ -1346,18 +1360,108 @@ namespace debugshell
 		
 		
 	}
+	int print_dissassembly(int which_stack)
+	{
+		
+		int seq[STACK_SIZE+1];
+		
+		for ( int q = 0; q < STACK_SIZE; ++q ) seq[q] = ( (which_stack >= 0) ? sequences[which_stack*(STACK_SIZE+1)+q] : stack[q]); //copy the sequence set to the temp stack.
+		
+		printf("Dissassembly of Stack [%d]\n", which_stack);
+		int numargs;
+		for ( int q = 0; q < seq[TOP]; ++q )
+		{
+			int asmid = seq[q];
+			//if and only if numargs is 0, and we aren't on the first instruction, 
+			//do we print arg values in registers; otherwise the register holds 
+			//an instruction
+			
+			if ( numargs && q )
+			{
+				--numargs;
+				printf("[%d]: %d,\n",q,asmid);
+				continue;
+			}
+			unless(numargs) numargs = num_instruction_params(asmid);
+			switch(asmid)
+			{
+				case WARP: printf("[%d]: WARP\n",q); break;
+				case POS: printf("[%d]: POS\n",q); break;
+				case MOVEX: printf("[%d]: MOVEX\n",q); break;
+				case MOVEY: printf("[%d]: MOVEY\n",q); break;
+				case REFILLHP: printf("[%d]: REFILLHP\n",q); break;
+				case REFILLMP: printf("[%d]: REFILLMP\n",q); break;
+				case REFILLCTR: printf("[%d]: REFILLCTR\n",q); break;
+				case MAXHP: printf("[%d]: MAXHP\n",q); break;
+				case MAXMP: printf("[%d]: MAXMP\n",q); break;
+				case MAXCTR: printf("[%d]: MAXCTR\n",q); break;
+				case INVISIBLE: printf("[%d]: INVISIBLE\n",q); break;
+				case INVENTORY: printf("[%d]: INVENTORY\n",q); break;
+				case SAVE: printf("[%d]: SAVE\n",q); break;
+				case CREATEITEM: printf("[%d]: CREATEITEM\n",q); break;
+				case CREATENPC: printf("[%d]: CREATENPC\n",q); break;
+				case PALETTE: printf("[%d]: PALETTE\n",q); break;
+				case MONOCHROME: printf("[%d]: MONOCHROME\n",q); break;
+				case BOMBS: printf("[%d]: BOMBS\n",q); break;
+				case MBOMBS: printf("[%d]: MBOMBS\n",q); break;
+				case ARROWS: printf("[%d]: ARROWS\n",q); break;
+				case MARROWS: printf("[%d]: MARROWS\n",q); break;
+				case KEYS: printf("[%d]: KEYS\n",q); break;
+				case LKEYS: printf("[%d]: LKEYS\n",q); break;
+				case RUPEES: printf("[%d]: RUPEES\n",q); break;
+				case MRUPEES: printf("[%d]: MRUPEES\n",q); break;
+				case LMAP: printf("[%d]: LMAP\n",q); break;
+				case LBOSSKEY: printf("[%d]: LBOSSKEY\n",q); break;
+				case BIGHITBOX: printf("[%d]: BIGHITBOX\n",q); break;
+				case DIAGONALMOVE: printf("[%d]: DIAGONALMOVE\n",q); break;
+				case LTRIFORCE: printf("[%d]: LTRIFORCE\n",q); break;
+				case LCOMPASS: printf("[%d]: LCOMPASS\n",q); break;
+				case RUNFFCSCRIPTID: printf("[%d]: RUNFFCSCRIPTID\n",q); break;
+				case FSCRIPT: printf("[%d]: FSCRIPT\n",q); break;
+				case FDATA: printf("[%d]: FDATA\n",q); break;
+				case TINT: printf("[%d]: TINT\n",q); break;
+				case HUE: printf("[%d]: HUE\n",q); break;
+				case CLEARTINT: printf("[%d]: CLEARTINT\n",q); break;
+				case FCSET: printf("[%d]: FCSET\n",q); break;
+				case FX: printf("[%d]: FX\n",q); break;
+				case FY: printf("[%d]: FY\n",q); break;
+				case FVX: printf("[%d]: FVX\n",q); break;
+				case FVY: printf("[%d]: FVY\n",q); break;
+				case FAX: printf("[%d]: FAX\n",q); break;
+				case FAY: printf("[%d]: FAY\n",q); break;
+				case FFLAGS: printf("[%d]: FFLAGS\n",q); break;
+				case FTHEIGHT: printf("[%d]: FTHEIGHT\n",q); break;
+				case FTWIDTH: printf("[%d]: FTWIDTH\n",q); break;
+				case FEHEIGHT: printf("[%d]: FEHEIGHT\n",q); break;
+				case FEWIDTH: printf("[%d]: FEWIDTH\n",q); break;
+				case FLINK: printf("[%d]: FLINK\n",q); break;
+				case FMISC: printf("[%d]: FMISC\n",q); break;
+				case PLAYSOUND: printf("[%d]: PLAYSOUND\n",q); break;
+				case PLAYMIDI: printf("[%d]: PLAYMIDI\n",q); break;
+				case DMAPMIDI: printf("[%d]: DMAPMIDI\n",q); break;
+				case SETLIFE: printf("[%d]: SETLIFE\n",q); break;
+				case SETMAGIC: printf("[%d]: SETMAGIC\n",q); break;
+				case SETCOUNTER: printf("[%d]: SETCOUNTER\n",q); break;
+				case SAVESEQUENCE: printf("[%d]: SAVESEQUENCE\n",q); break;
+				case RUNSEQUENCE: printf("[%d]: RUNSEQUENCE\n",q); break;
+				case TRACE: printf("[%d]: TRACE\n",q); break;
+				case PRSTACK: printf("[%d]: PRSTACK\n",q); break;
+				default: printf("[%d]: %d,\n",q,asmid); break;
+			}
+		}
+	}
 }
 
 global script test
 {
 	void run()
 	{
-		debugshell::SP = 0;
-		debugshell::clearbuffer();
+		zshell::SP = 0;
+		zshell::clearbuffer();
 		while(1)
 		{
-			debugshell::process();
-			debugshell::windowcleanup();
+			zshell::process();
+			zshell::windowcleanup();
 			Waitdraw(); 
 			Waitframe();
 		}
