@@ -1,6 +1,6 @@
 /////////////////////////////////
 /// Debug Shell for ZC Quests ///
-/// Alpha Version 2.1.1       ///
+/// Alpha Version 2.1.2       ///
 /// 5th July, 2020            ///
 /// By: ZoriaRPG              ///
 /// Requires: 2.55 Alpha 74+  ///
@@ -100,6 +100,7 @@
 // v2.1.0  : Renamed a few commands, and added better documentation.
 // v2.1.1  : Fixed an infinite loop hang when using backspace.
 //         : Prevent the player from moving when enqueuing commands by pressing the 'down' key.
+// v2.1.2  : Enabled option STRING_SWITCH_CASE_INSENSITIVE in match_instruction().
 
 
 
@@ -640,6 +641,7 @@ namespace debugshell
 	//Match token substring to an instruction
 	int match_instruction(char32 token)
 	{
+		#option STRING_SWITCH_CASE_INSENSITIVE on
 		if ( log_actions )  
 		{ 
 			printf("Input token into match_instruction is: %s\n", token); 
