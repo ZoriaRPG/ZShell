@@ -1,6 +1,6 @@
 /////////////////////////////////
 /// Debug Shell for ZC Quests ///
-/// Alpha Version 2.1.0       ///
+/// Alpha Version 2.1.1       ///
 /// 5th July, 2020            ///
 /// By: ZoriaRPG              ///
 /// Requires: 2.55 Alpha 74+  ///
@@ -98,6 +98,8 @@
 //         : Optimised; converted custom logging to internal trace and printf.
 //         : The instruction set is no longer shorthand, but can be easily edited and expanded.
 // v2.1.0  : Renamed a few commands, and added better documentation.
+// v2.1.1  : Fixed an infinite loop hang when using backspace.
+//         : Prevent the player from moving when enqueuing commands by pressing the 'down' key.
 
 
 
@@ -199,6 +201,12 @@ namespace debugshell
 	int debug_buffer[BUFFER_LENGTH];
 	int sequences[(STACK_SIZE+1)*SEQUENCES];
 	
+	enum winstattypes 
+	{
+		wsNONE, wsOPEN, wsCLOSING, wsCLEANUP, wsLAST
+	};
+	winstattypes windowstatus;
+	
 	const int YES = 1;
 	const int NO = 0;
 	
@@ -286,9 +294,14 @@ namespace debugshell
 					unless ( ENQUEUED ) 
 					{
 						int r = read(debug_buffer,false);
+						windowstatus = wsCLOSING;
 						if ( r ) execute(stack);
 					}
-					else execute(stack);
+					else 
+					{
+						windowstatus = wsCLOSING;
+						execute(stack);
+					}
 					break;
 				}
 				case rENQUEUED: //maybe type should be int with 0 being no return, 1 being enqueued, and 2 being raw?
@@ -300,8 +313,10 @@ namespace debugshell
 				default: 
 				{
 					if ( log_actions ) TraceS("type() returned: false");
-					Link->PressStart = false;
-					Link->InputStart = false;
+					windowstatus = wsCLOSING;
+					//Link->PressStart = false;
+					//Link->InputStart = false;
+					//Link->InputStart = false;
 				}
 			}
 		}
@@ -310,18 +325,20 @@ namespace debugshell
 	//Process user typing
 	int type()
 	{
+		windowstatus = wsOPEN;
 		int frame = 0;
 		if ( !frame && log_actions ) TraceS("Starting type()\n");
 		++frame;
 		Game->TypingMode = true;
 		int key_timer; int buffer_pos = 0;
 		bool typing = true; int e;
+		Game->DisableActiveSubscreen = true;
 		//while(!Input->ReadKey[KEY_ENTER] || Input->ReadKey[KEY_ENTER_PAD])
 		while(typing)
 		{
 			if ( Input->ReadKey[KEY_BACKSPACE] ) //backspace
 			{
-				
+				printf("backspace\n");
 				if ( buffer_pos > 0 )
 				{
 					debug_buffer[buffer_pos] = 0;
@@ -329,10 +346,11 @@ namespace debugshell
 					debug_buffer[buffer_pos] = 0;
 				}
 				key_timer = KEY_DELAY;
-				continue;
+				//continue;
 			}
 			else if ( Input->ReadKey[KEY_DOWN] )
 			{
+				Link->PressDown = false;
 				e = enqueue();
 				if ( log_actions ) printf("type() enqueued an instruction, queue ID: %d", e);
 				
@@ -340,10 +358,15 @@ namespace debugshell
 			else if ( Input->ReadKey[KEY_ENTER] || Input->ReadKey[KEY_ENTER_PAD] ) 
 			{
 				Game->TypingMode = false;
+				//Link->PressStart = false;
 				//TraceNL(); TraceS("Read enter key, and buffer position is: "); Trace(buffer_pos); TraceNL();
 				unless ( buffer_pos ) 
 				{
-					unless ( ENQUEUED ) return 0; //do not execute if there are no commands
+					unless ( ENQUEUED ) 
+					{
+						windowstatus = wsCLOSING;
+						return 0; //do not execute if there are no commands
+					}
 					else return rENQUEUED;
 				}
 				else //we've typed something
@@ -352,7 +375,11 @@ namespace debugshell
 					{
 						e = enqueue(); return rENQUEUED; //also enqueue this line
 					}
-					else return rRAW;
+					else 
+					{
+						return rRAW;
+						windowstatus = wsCLOSING;
+					}
 				}
 			}
 			else if ( Input->Key[KEY_LCONTROL] || Input->Key[KEY_RCONTROL] )
@@ -368,6 +395,7 @@ namespace debugshell
 				clearstack();
 				
 				Game->TypingMode = false;
+				windowstatus = wsCLOSING;
 				return 0; //exit and do not process.
 			}
 			
@@ -402,7 +430,7 @@ namespace debugshell
 					if ( Input->ReadKey[k] )
 					{
 						//TraceS("Read a key: "); Trace(k); TraceNL();
-						debug_buffer[buffer_pos] = KeyToChar(k,(Input->Key[KEY_LSHIFT])||(Input->Key[KEY_RSHIFT])); //Warning!: Some masking may occur. :P
+						debug_buffer[buffer_pos] = KeyToChar(k); //Warning!: Some masking may occur. :P
 						//TraceNL(); TraceS(debug_buffer); TraceNL();
 						++buffer_pos;
 						key_timer = KEY_DELAY;
@@ -423,7 +451,6 @@ namespace debugshell
 			draw();
 			Waitframe();
 		}
-		
 	}
 	
 	//Draws the Shell
@@ -433,6 +460,19 @@ namespace debugshell
 		Screen->Rectangle(W_LAYER, WINDOW_X, WINDOW_Y, WINDOW_X+WINDOW_W, WINDOW_Y+WINDOW_H, W_COLOUR, 1, 0,0,0,true,W_OPACITY);
 		Screen->DrawString(F_LAYER,WINDOW_X+CHAR_X,WINDOW_Y+CHAR_Y,FONT,F_COLOUR,F_BCOLOUR,0,debug_buffer,F_OPACITY);
 	}
+	
+	void windowcleanup()
+	{
+		switch(windowstatus)
+		{
+			case wsCLOSING:
+				windowstatus = wsCLEANUP; break;
+			case wsCLEANUP:
+				Game->DisableActiveSubscreen = false;
+				windowstatus = wsNONE; break;
+		}
+	}
+		
 	
 	//List of instructions
 	enum instructions
@@ -770,8 +810,8 @@ namespace debugshell
 	{
 		clearbuffer();
 		Game->TypingMode = false;
-		Link->PressStart = false;
-		Link->InputStart = false;
+		//Link->PressStart = false;
+		//Link->InputStart = false;
 	}
 	
 	//Clears the typing buffer.
@@ -1294,8 +1334,8 @@ namespace debugshell
 		//clear the main buffer, too!
 		for ( int cl = 0; cl < BUFFER_LENGTH; ++cl ) debug_buffer[cl] = 0;
 		Game->TypingMode = false; //insurance clear
-		Link->PressStart = false;
-		Link->InputStart = false;
+		//Link->PressStart = false;
+		//Link->InputStart = false;
 		ENQUEUED = 0;
 		
 		
@@ -1311,6 +1351,7 @@ global script test
 		while(1)
 		{
 			debugshell::process();
+			debugshell::windowcleanup();
 			Waitdraw(); 
 			Waitframe();
 		}
