@@ -1,6 +1,6 @@
 
 //! ZScript: ZC Shell for Quest Debug and CHeat Commands
-//! Docs for v1.14.2
+//! Docs for v2.1.4
 
 /////////////
 /// USING ///
@@ -8,7 +8,7 @@
 
 Press F7 to open the shell.
 Type an instruction.
-Press the DOWN ARROW KEy to ENQUEUE the instruction, or;
+Press the DOWN ARROW KEY to ENQUEUE the instruction, or;
 	Press ENTER to execute the instruction.
 If you have enqueued instructions, press ENTER either at the
 	end of an instruction, or on an empty line to EXECUTE 
@@ -84,171 +84,124 @@ Type the command: RunSequence,id
 /// Supported Instructions ///
 //////////////////////////////
 
-Link's Position
-w    : Warp Link to a specific dmap and screen
-po   : Reposition Link on the screen.
-mx   : Move link by +/-n pixels on the X axis.
-my   : Move link by +/-n pixels on the Y axis.
+Instruction Set
+Instructions, 		Args			Description
+WARP: 			dmap,screen		Warp to a specific dmap and screen.
+POS			x,y			Reposition player on the screen.
+MOVEX			pixels (+/-)		Move player by +/-n pixels on the X axis.
+MOVEY			pixels (+/-)		Move player by +/-n pixels on the Y axis.
+REFILLHP		NONE			Refill player's HP to Max.
+REFILLMP		NONE			Refill player's MP to Max.
+REFILLCTR		counter			Refill a specific counter to Max.
+MAXHP			amount			Set player's Max HP.
+MAXMP			amount			Set player's Max MP.
+MAXCTR			counter, amount		Set the maximum value of a specific counter.
+INVISIBLE		(BOOL) on / off		Set player's Invisible state.
+INVENTORY		item, (BOOL), on / off	Set the state of a specific item in player's inventory.
+BIGHITBOX		(BOOL) on / off		Set if player sprite uses a full tile hitbox. (hitbox)
+DIAGONALMOVE		(BOOL) on / off		Set if player can move diagonally.
 
-//Counters
-h    : Set Link's HP to a specific value.
-m    : Set Link's Magic to a specific value.
-a    : Set the current number of Arrows
-b    : Set the current number of Bombs
-r    : Set the current number of Rupees
-mb   : Set the current number of Max Bombs
-ma   : Set the current number of Max Arrows
-mr   : Set the current number of Max Rupees
-k    : Set the current number of Keys
-co   : Set an arbitrary counter to a specific value.
-rh   : Refill Link's HP to Max.
-rm   : Refill Link's HP to Max.
-rc   : Refill a specific counter to Max.
-mh   : Set Link's Max HP.
-mm   : Set Link's Max MP
-mc   : Set the maximum value of a specific counter.
+SAVE			NONE			Save the game.
+CREATEITEM		id, x, y		Create an item at coordinates x, y. 
+CREATENPC		id, x, y		Create an enemy at coordinates x, y.
 
-//Items
-lk   : Set the current number of Level Keys for a specific level ID.
-lm   : Set if the MAP item for a specific Level is in inventory.
-lc   : Set if the COMPASS item for a specific Level is in inventory.
-lt   : Set if the TRIFORCE item for a specific Level is in inventory.
-lb   : Set if the BOSS KEy item for a specific Level is in inventory.
-itm  : Set the state of a specific item in Link's inventory.
+PALETTE			dmap,pal		Change a DMap palette; -1 for current dmap.
+MONOCHROME 		(BOOL) on / off		Set monochrome effect.
 
-//Link's States
-hb   : Set if Link uses a full tile hitbox. (hitbox)
-d    : Set if Link can move diagonally.
-inv  : Set Link's Invisible state.
+	
+ARROWS			amount			Set the current number of Arrows
+BOMBS			amount			Set the current number of Bombs
+RUPEES			amount			Set the current number of Rupees
+MAXBOMBS		amount			Set the current number of Max Bombs
+MAXARROWS		amount			Set the current number of Max Arrows
+MAXRUPEES		amount			Set the current number of Max Rupees
+KEYS			amount			Set the current number of Keys
+LKEYS			level id, number	Set the current number of Level Keys for a specific level ID.
+LMAP			level id, (BOOL) t|f	Set if the MAP item for a specific Level is in inventory.
+LCOMPASS		level id, (BOOL) t|f	Set if the COMPASS item for a specific Level is in inventory.
+LTRIFORCE		level id, (BOOL) t|f	Set if the TRIFORCE item for a specific Level is in inventory.
+LBOSSKEY		level id, (BOOL) t|f	Set if the BOSS KEy item for a specific Level is in inventory.
 
-//Create Objects
-crn  : Create an npc.
-cri  : Create an item.
+HUE			r, g, b, (BOOL) t|f	Set a specific hue effect.
+TINT			r, g, b			Set a specific tint effect.
+CLEARTINT		NONE			Clear hue/tint.
+	
+FDATA			id, combo_id		Set the Data value of one ffc.
+FSCRIPT			id, scriptnumber	Set the Script value of one ffc.
+FCSET 			id, cset		Set the CSet of an ffc. 
+FX			id, x			Set the X component of an ffc.
+FY			id, y			Set the Y component of an ffc.
+FVX			id, vx			Set the X Velocity Component of an ffc.
+FVY			id, vy			Set the Y Velocity Component of an ffc.
+FAX 			id, ax			Set the X Accel. Component of an ffc. 
+FAY			id, ay			Set the XYAccel. Component of an ffc. 
+FFLAGS			id, flag, (BOOL) t|f	Set an ffc flag state true or false.
+FTHEIGHT		id, tileheight		Set the TileHeight of an ffc.
+FTWIDTH 		id, tilewidth		Set the TileWidth of an ffc.
+FEHEIGHT 		id, effectheight	Set the EffectHeight of an ffc.
+FEWIDTH			id, effectwidth		Set the EffectWidth of an ffc.
+FLINK 			id, link_id		Link an ffc to another, or clear a link. 
+FMISC			id, index, value	Write to the Misc[] values of an ffc.
 
-//FFC Values
-fd   : Set the Data value of one ffc.
-fs   : Set the Script value of one ffc.
-fc   : Set the CSet of an ffc.
-fx   : Set the X component of an ffc.
-fy   : Set the Y component of an ffc.
-fvx  : Set the X Velocity Component of an ffc.
-fvy  : Set the Y Velocity Component of an ffc.
-fax  : Set the X Accel. Component of an ffc.
-fay  : Set the XYAccel. Component of an ffc.
-ffl  : Set an ffc flag state true or false.
-fth  : Set the TileHeight of an ffc.
-ftw  : Set the TileWidth of an ffc.
-feh  : Set the EffectHeight of an ffc.
-few  : Set the EffectWidth of an ffc.
-fl   : Link an ffc to another, or clear a link.
-fm   : Write to the Misc[] values of an ffc.
+RUNFFCSCRIPTID		scriptid		Attempt to run an ffc script.
+	
+PLAYSOUND 		sound_id		Play a sound effect.
+PLAYMIDI 		midi_id			Play a MIDI. 
+DMAPMIDI		dmap_id, midi_id	Set the MIDI for a specific DMap to a desired ID.
 
-//Audio
-pls  : Play a sound effect.
-plm  : Play a MIDI.
-dmm  : Set the MIDI for a specific DMap to a desired ID.
+%D:			*number			Traces the number after :
+%S:			*string			Traces all text after :
 
-//Visual
-pal  : Change a DMap palette.
-mon  : Set a monochrome graphical state.
-hu   : Set a specific hue effect.
-t    : Set a specific tint effect.
-cl   : Clear hue/tint.
-
-//Misc.
-run  : Attempt to run an ffc script.
-save : Save the game.
-
-//////////////////////
-/// LITERAL VALUES ///
-//////////////////////
-Use these as srg values, if desired, instead of literals:
-lx   : The current X-coordinate for Link.
-ly   : The current Y-coordinate for Link.
+SAVESEQUENCE		id			Saved the current sequence to slot 0 through 9, as specified by the arg..
+RUNSEQUENCE		id			Runs a sequence script, as specified by the id arg (0 through 9).
+		
+PRSTACK			stackid			Prints the disassembly of a given stack; 0 to 9 for a sequence, -1 for current.
 
 
 ////////////////////////
 /// Syntax and Usage ///
 ////////////////////////
 
-//Link's Position
-w,1,2       : w,0,32 : Warps Link to DMap 0, screen 32.
-po,1,2      : po,60,12 : Set Link's X to 60, and his Y to 12
-mx,1        : mx,12 : moves Link +12 pixels on his X coordinate
-mx,-1       : mx,-12 : moves Link -12 pixels on his X coordinate
-my,1        : my,12 : moves Link +12 pixels on his Y coordinate
-my,-1       : my,-12 : moves Link -12 pixels on his Y coordinate
+The syntax for ZShell is simple:
 
-//Counters
-h           : h,amount
-h           : h,amount
-m           : m,amount
-a           : a,amount
-b           : b,amount
-r           : r,amount
-mb          : mb,amount
-ma          : mb,amount
-mr          : mr,amount
-k           : k,amount
-co          : co,counter_id,amount
-rh          : Refill Link's HP to full.
-rm          : Refill Link's Magic to full.
-rc,1        : rc,2 : Refill Counter CR_BOMBS to full.
-mh,1        : mh,64 : Set Link's HP to 64
-mm,1        : mm,256 : Set Link's Max Magic to 256
-mc,1,2      : mc,2,16 : Set the Bombs counter max to 16.
+Type a command. If the command has args, separate the command and each arg
+using a comma:
 
-//Items
-lk          : lk,level_id,,amount
-lm          : lm,level_id,true|false
-lc          : lc,level_id,true|false
-lt          : lt,level_id,true|false
-lb          : lb,level_id,tru|false
-itm,1,true  : itm,6,true : Set the white sword true in inventory.
-itm,1,false : itm,6,true : Set the white sword falsein inventory.
+e.g. Link's Position
+WARP,1,2       : w,0,32 : Warps Link to DMap 0, screen 32.
+POS,1,2      : po,60,12 : Set Link's X to 60, and his Y to 12
+MOVEX,1        : mx,12 : moves Link +12 pixels on his X coordinate
+MOVEX,-1       : mx,-12 : moves Link -12 pixels on his X coordinate
 
-//Link's States
-hb          : hb,true|false
-d           : d,true|false
-inv,true    : Set Link's Invincibility state true.
-inv,false   : Set Link's Invincibility state false.
+If you press enter/return, the console closes and the command runs instantly.
+You can instead to enqueue commands by pressing the DOWN ARROW key. Thic clears 
+the shell for the next command, and equeues the command into a temporary script.
 
-//Create Objects
-cri,1,2,3   : cri,id,x,y : cri,id,lx,ly : Create an item (id) at x,y
-crn,1,2,3   : cri,id,x,y : Create n npc (id) at x,y
+You can save an equeued script as a sequence by using colding the control key and
+pressing a number (0 to 9) on your keyboard. This saves the script as sequence 0 through
+sequence 9, depending on the selection that you pressed.
 
-//FFC Values
-fc          : fc,ffc_id,cset
-fx          : fx,ffc_id,x
-fy          : fy,ffc_id,y
-fvx         : fvx,ffc_id,vx
-fvy         : fvy,ffc_id,vy
-fax         : fax,ffc_id,ax
-fay         : fay,ffc_id,ay
-ffl         : fl,ffc_id,flag_index,(true|false)
-fth         : fth,ffc_id,tileheight
-ftw         : ftw,ffc_id,tilewidth
-feh         : feh,ffc_id,effectheight
-few         : few,ffc_id,effecteidth
-fl          : fl,ffc_id,link_id
-fm          : fm,ffc_id,misc_index,value
-fd          : fd,ffc_id,combo_id
-fs          : fsscript_id
+You may alternatively save the sequence witht he SAVESEQUENCE command, followed by an arg
+for the sequence ID (0 to 9).
 
-//Audio
-pls         : pls,sound_id
-plm         : plm,midi_id
-dmm         : dmm,dmap_id,midi_id
+e.g. SAVESEQUENCE,3
 
-//Visual
-hu          : hu,red,green,blue
-t           : t,red,green,blue [,distributed (true|false)]
-pal         : pal,-1,6 : Sets the current DMap palette to 6.
-            : pal,3,6 : Sets the palette for DMap ID 3 to Palette ID 6.
-mon         : mon,5 : Sets monochrome (violet hue) mode on. (0 to disable).
-cl          : cl
+You can then run the entire script by executing RUNSEQUENCE command, followed by the arg for
+the sequence ID.
 
-//Misc
-run         : run,script_id
-save        : Save the game.
+e.g. RUNSEQUENCE,3
+
+Sequence scripts are saved when you save the game, and after saving you can run them on 
+re-plays, until you overwrite them.
+
+
+//////////////////////
+/// LITERAL VALUES ///
+//////////////////////
+Use these as arg values, if desired, instead of literals:
+lx   : The current X-coordinate for Link.
+ly   : The current Y-coordinate for Link.
+
+CREATEITEM,1,lx,ly 
+This creates item ID 1 on top of Link.
 
